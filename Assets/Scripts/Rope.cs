@@ -80,7 +80,7 @@ public class Rope : MonoBehaviour {
             {
                 _Muscle muscle = new _Muscle();
                 muscle.restRotation = 0;
-                if(gameObject.tag == "rArm") 
+                if(gameObject.tag == "rArm" || gameObject.tag == "lArm") 
                 {
                     //muscle.restRotation = 90;
                     muscle.force = 100;
@@ -160,10 +160,10 @@ public class Rope : MonoBehaviour {
             // this is not in use i believe
             if (i == length - 1) 
             {
-                DistanceJoint2D distance = link.AddComponent(typeof(DistanceJoint2D)) as DistanceJoint2D;
-                distance.connectedBody = oldestBody;
-                distance.autoConfigureDistance = true;
-                distance.maxDistanceOnly = true;
+                //DistanceJoint2D distance = link.AddComponent(typeof(DistanceJoint2D)) as DistanceJoint2D;
+                //distance.connectedBody = oldestBody;
+                //distance.autoConfigureDistance = true;
+                //distance.maxDistanceOnly = true;
                 if(gameObject.tag == "rLeg" || gameObject.tag == "lLeg")
                 {
                 //DistanceJoint2D d = link.AddComponent<DistanceJoint2D>();

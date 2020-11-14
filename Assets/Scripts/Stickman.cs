@@ -12,6 +12,7 @@ public class Stickman: MonoBehaviour
     public bool Right;
     public int counter;
     public bool Left;
+    public int arm_length;
     public float leg_changex = 5f;
     public float leg_changey = 5f;
     public bool stretch = false;
@@ -50,6 +51,8 @@ public class Stickman: MonoBehaviour
     public Rigidbody2D lRigid;
     public _Muscle[] legs;
     public int count;
+    public bool disableR;
+    public bool disableL;
     public float ti = 0;
     public bool holdingR;
     public bool holdingL;
@@ -115,15 +118,39 @@ public class Stickman: MonoBehaviour
                     muscle.restRotation = 0;
                 }
                 // change this to shooting arm is using 2hands
-                if (muscle.bone.gameObject.tag == "rArm" && disable == false)
+                if (muscle.bone.gameObject.tag == "rArm")
                 {
                         //muscle.force = 15;
-                        muscle.ActivateMuscle();
+                        if(disableR == false)
+                        {
+                            muscle.force = 100;
+                            muscle.bone.gravityScale = 0;
+                            muscle.ActivateMuscle();
+                        }
+                        else
+                        {
+                            muscle.bone.gravityScale = 1;
+                            muscle.force = 0;
+                        }
                         //muscle.force = 0;
                         
                 }
                 // could control arms always but give them like an animation or rules
-                else if (muscle.bone.gameObject.tag != "rArm")
+                else if (muscle.bone.gameObject.tag == "lArm")
+                {
+                    if(disableL == false)
+                    {
+                        muscle.force = 100;
+                        muscle.bone.gravityScale = 0;
+                        muscle.ActivateMuscle();
+                    }
+                    else
+                    {
+                        muscle.force = 0;
+                        muscle.bone.gravityScale = 1;
+                    }
+                }
+                else
                 {
                     muscle.ActivateMuscle();
                 }
@@ -160,6 +187,22 @@ public class Stickman: MonoBehaviour
             Left = false;
             GetUpAni();
         }
+        if(rArm.transform.GetChild(0).gameObject.tag == "Gun" || grabbingR || holdingR || NowGrabbingR)
+        {
+            disableR = false;
+        }
+        else
+        {
+            disableR = true;
+        }
+        if(lArm.transform.GetChild(0).gameObject.tag == "Gun" || grabbingL || holdingL || NowGrabbingL)
+        {
+            disableL = false;
+        }
+        else
+        {
+            disableL = true;
+        }
         //if (Input.GetKeyDown(KeyCode.Space))
         //{
             //Jump();
@@ -183,7 +226,7 @@ public class Stickman: MonoBehaviour
             GetUpAni();
             flying = false;
         }
-        if(Input.GetKeyDown(KeyCode.Space))
+        if(Input.GetKeyDown(KeyCode.Space) && HasCollided)
         {
             Jump();
         }
@@ -191,6 +234,8 @@ public class Stickman: MonoBehaviour
         // movement of arm is great, but character is like dead with it
         // almost like there is no activation of muscles but console log proves otherwise
         // seems like maybe i've hardcoded values for muscles or something?
+
+        //doesn't work, not sure how to keep in , might just delete as a bit useless anyway
         if(Input.GetKeyDown(KeyCode.Q) && flying == false)
         {   if (Direction == "Right")
             {
@@ -273,6 +318,46 @@ public class Stickman: MonoBehaviour
                 holdingR = false;
                 posturingL = false;
                 posturingR = false;
+            }
+        }
+
+        if(NowHoldingL)
+        {
+            foreach(_Muscle muscle in muscles)
+            {
+                // this is decent balance between strength to hold up
+                // and light enought to not collapse
+                // gonna have try to hit a sweet spot, as right now slightly too heavy
+                // and prob will snap at high speeds, could try decrease leg mass
+                // also have to reset all values after
+                if(muscle.bone.gameObject.tag == "lArm")
+                {
+                    muscle.bone.mass = 10f;
+                    lArmRigid.mass = 10f;
+                    muscle.bone.gravityScale = 0f;
+                }
+                else if(muscle.bone.gameObject.tag != "lLeg" && muscle.bone.gameObject.tag != "rLeg" && muscle.bone.gameObject.tag != "rArm" )
+                {
+                    muscle.bone.mass = 0.1f;
+                }
+                else if(muscle.bone.gameObject.tag == "rArm")
+                {
+                    muscle.bone.mass = 0.001f;
+                }
+            }
+        }
+        if(NowHoldingR)
+        {
+            foreach(_Muscle muscle in muscles)
+            {
+                if(muscle.bone.gameObject.tag == "rArm")
+                {
+                    muscle.bone.mass = 100;
+                }
+                else
+                {
+                    muscle.bone.mass = 0.00001f;
+                }
             }
         }
 
@@ -418,7 +503,7 @@ public class Stickman: MonoBehaviour
             }
         }
 
-        if ((grabbingL || holdingL || NowGrabbingL || lArm.transform.childCount == 1) && disable == false) 
+        if (disableL == false) 
         {
             Vector3 direction = (Camera.main.ScreenToWorldPoint(Input.mousePosition) - lArm.transform.position).normalized;
             float angle = Mathf.Atan2(direction.x, direction.y) * Mathf.Rad2Deg;
@@ -427,7 +512,7 @@ public class Stickman: MonoBehaviour
             {
                 if(muscle.bone.gameObject.tag == "lArm")
                 {
-                    muscle.restRotation = angle;
+                    muscle.restRotation = -angle + 180;
                 }
             
             }
@@ -435,7 +520,7 @@ public class Stickman: MonoBehaviour
             //lArmRigid.freezeRotation = true;
         }
 
-        if (grabbingR || holdingR || NowGrabbingR || rArm.transform.childCount >= 1)
+        if (disableR == false)
         {
             disable = false;
             Vector3 direction = (Camera.main.ScreenToWorldPoint(Input.mousePosition) - lArm.transform.position).normalized;
@@ -617,6 +702,7 @@ public class Stickman: MonoBehaviour
             //}
             //count = 0;
         //}
+        Debug.Log("thismadcityirunma***REMOVED***")
         collided = false;
     }
     public void Step1Right()
@@ -743,11 +829,11 @@ public class Stickman: MonoBehaviour
     public void Jump()
     {
         // could add vectors as variables to edit in editor
-        if (jumping == false)
+        if (HasCollided)
         {
             foreach(_Muscle muscle in legs)
             {
-                muscle.bone.AddForce(new Vector2(0, 5f), ForceMode2D.Impulse);
+                muscle.bone.AddForce(new Vector2(0, 50f), ForceMode2D.Impulse);
             }
         }
     }
@@ -815,6 +901,14 @@ public class Stickman: MonoBehaviour
         {
             NowPosturingL = false;
         }
+
+        foreach(_Muscle muscle in muscles)
+        {
+            if(muscle.bone.gameObject.tag == Arm.tag)
+            {
+                muscle.bone.mass = 1/arm_length;
+            }
+        }
     }
     // if you feel like this goes too far, look at bottom where there is code
     // that makes it feel more grounded by pushing head
@@ -825,23 +919,32 @@ public class Stickman: MonoBehaviour
 
             muscle.restRotation -=5;
         }
-        if(legs[0].restRotation != 355)
+        if(legs[0].restRotation > -355)
         {
             Invoke("Backflip", 0.001f);
         }
+        else
+        {
+            GetUpAni();
+        }
+        Debug.Log("back");
     }
 
     public void Frontflip()
     {
         foreach (_Muscle muscle in legs)
         {
-
             muscle.restRotation +=5;
         }
         if(legs[0].restRotation != 355)
         {
             Invoke("Frontflip", 0.001f);
         }
+        else
+        {
+            GetUpAni();
+        }
+        Debug.Log("front");
     }
     // could also change the force to make it more smooth
     // also add propulsion from head
@@ -864,7 +967,7 @@ public class Stickman: MonoBehaviour
             
                 foreach(_Muscle muscle in legs)
                 {
-                    muscle.bone.AddForce(new Vector2(2f,3f), ForceMode2D.Impulse);
+                    muscle.bone.AddForce(new Vector2(5f,7f), ForceMode2D.Impulse);
                 }
                 Invoke("StraightAni", 0f);
             }
