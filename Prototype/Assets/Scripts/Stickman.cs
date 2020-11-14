@@ -810,7 +810,7 @@ public class Stickman: MonoBehaviour
             //}
             //count = 0;
         //}
-        Debug.Log("thismadcityirunma***REMOVED***")
+        Debug.Log("thismadcityirunma***REMOVED***");
         collided = false;
     }
     public void Step1Right()
