@@ -47,22 +47,15 @@ public class FollowPos : MonoBehaviour {
         {
             Sprite.flipY = false;
         }
-<<<<<<< HEAD
         //gameObject.transform.rotation = Quaternion.Euler(0f,0f,angle)
-=======
->>>>>>> 242da17ffddb7cca4e9364343fad6ca7e8037683
         Debug.Log("y");
         //Debug.Log(yScalar);
         Debug.Log("x");
         Debug.Log(xScalar);
         //Debug.Log(quadrot);
-<<<<<<< HEAD
         Vector3 direction = (Camera.main.ScreenToWorldPoint(Input.mousePosition) - gameObject.transform.position).normalized;
         float angle = Mathf.Atan2(direction.x, direction.y) * Mathf.Rad2Deg;
         gameObject.transform.rotation = Quaternion.Euler(0f,0f,-angle + 90);
-=======
-
->>>>>>> 242da17ffddb7cca4e9364343fad6ca7e8037683
         gameObject.transform.position = new Vector3(target.transform.position.x + (xScalar *(collider.bounds.max[0] - collider.bounds.center[0])), target.transform.position.y + (yScalar *(collider.bounds.max[0] - collider.bounds.center[0]))  , 0 );
     }
 }

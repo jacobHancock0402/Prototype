@@ -26,13 +26,8 @@ public class Legs : MonoBehaviour {
     {
         // could add vectors as variables to edit in editor
 
-<<<<<<< HEAD
         Vector2 direction = gameObject.transform.position - position;
         Leg.AddForce(direction * 150, ForceMode2D.Impulse);
-=======
-        //Vector2 direction = gameObject.transform.position - position;
-        //Leg.AddForce(direction * 15, ForceMode2D.Impulse);
->>>>>>> 242da17ffddb7cca4e9364343fad6ca7e8037683
     }
 
     void OnCollisionEnter2D(Collision2D coll)
