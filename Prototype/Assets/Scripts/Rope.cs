@@ -5,11 +5,14 @@ using System;
 
 public class Rope : MonoBehaviour {
     public float length;
+    public bool wasGrabbed = false;
     public int oldLength;
+    public GameObject gunSetup;
     public GameObject chainPrefab;
     public Transform NewestChild;
     public Rigidbody2D NewestBody;
     public Stickman stick;
+    public AudioSource audio;
     public Gun Gun;
     public float leg_changex = 5f;
     public float leg_changey = 5f;
@@ -20,10 +23,13 @@ public class Rope : MonoBehaviour {
 	void Start() {
         if(stick)
         {
+            gunSetup = new GameObject("spawner");
             body = stick.transform.GetChild(0).gameObject.GetComponent<Rigidbody2D>();
             head = stick.transform.GetChild(4).gameObject.GetComponent<Rigidbody2D>();
             body.mass = stick.body_mass;
             head.mass = stick.head_mass;
+            stick.rbBody = gameObject.transform.root.GetChild(0).GetComponent<Rigidbody2D>();
+            audio = GetComponent<AudioSource>();
         }
 
 
@@ -56,24 +62,29 @@ public class Rope : MonoBehaviour {
             BoxCollider2D collider = link.GetComponent<BoxCollider2D>();
             link.transform.position = new Vector3(
             gameObject.transform.position.x, 
-            NewestChild.position.y - Mathf.Abs(collider.bounds.max[1] - collider.bounds.center[1]), 
+            NewestChild.position.y - Mathf.Abs(collider.bounds.max[1] - collider.bounds.min[1]), 
             gameObject.transform.position.z);
             link.transform.SetParent(gameObject.transform);
             Rigidbody2D body = link.AddComponent(typeof(Rigidbody2D)) as Rigidbody2D;
             body.mass = 0.1f;
+            body.interpolation = RigidbodyInterpolation2D.Interpolate;
             if(i==0)
             {
                 oldestBody = body;
             }
             HingeJoint2D connection = link.AddComponent(typeof(HingeJoint2D)) as HingeJoint2D;
             connection.connectedBody = NewestBody;
-            if(gameObject.tag == "rLeg" || gameObject.tag == "lLeg")
+            // DistanceJoint2D connect = link.AddComponent(typeof(DistanceJoint2D)) as DistanceJoint2D;
+            // connect.connectedBody = gameObject.GetComponent<Rigidbody2D>();
+            // connect.maxDistanceOnly = true;
+            // connect.autoConfigureDistance = false;
+            if(gameObject.tag == "rLeg" || gameObject.tag == "lLeg" || gameObject.tag == "Rope")
             {
                 connection.enableCollision = true;
             }
             if(gameObject.tag == "lArm" || gameObject.tag == "rArm")
             {
-                //connection.enableCollision = true;
+                connection.enableCollision = true;
                 //body.freezeRotation = true;
                 //JointAngleLimits2D limit = connection.limits;
                 //limit.min = -90;
@@ -99,13 +110,10 @@ public class Rope : MonoBehaviour {
             {
                 _Muscle muscle = new _Muscle();
                 muscle.restRotation = 0;
-<<<<<<< HEAD
                 float value = 1/length;
                 Debug.Log(value);
                 Debug.Log(1/length);
                 Debug.Log(length);
-=======
->>>>>>> 242da17ffddb7cca4e9364343fad6ca7e8037683
                 if(gameObject.tag == "rArm" || gameObject.tag == "lArm") 
                 {
                     //muscle.restRotation = 90;
@@ -221,6 +229,8 @@ public class Rope : MonoBehaviour {
                 //distance.connectedBody = oldestBody;
                 //distance.autoConfigureDistance = true;
                 //distance.maxDistanceOnly = true;
+                gunSetup.transform.position = new Vector3(link.transform.position.x, link.transform.position.y, link.transform.position.z);
+                gunSetup.transform.parent = link.transform;
                 if(gameObject.tag == "rLeg" || gameObject.tag == "lLeg")
                 {
                 //DistanceJoint2D d = link.AddComponent<DistanceJoint2D>();
@@ -232,6 +242,7 @@ public class Rope : MonoBehaviour {
                     RaycastHit2D ray = Physics2D.Raycast(origin,dir,500f);
                     Debug.DrawRay(origin,dir);
                     Collided collide = link.AddComponent(typeof(Collided)) as Collided;
+                    collide.Audio = audio;
                     // change accepted tags here to get other guns accepted
                     collide.stick = stick;
                     
@@ -250,8 +261,9 @@ public class Rope : MonoBehaviour {
                     if(child.tag == "Gun")
                     {
                         //child.transform.SetParent(link.transform,false);
-                        FollowPos pos = child.AddComponent(typeof(FollowPos)) as FollowPos;
-                        pos.target = link;
+                        //FollowPos pos = child.AddComponent(typeof(FollowPos)) as FollowPos;
+                        //pos.target = link;
+                        child.transform.parent = gunSetup.transform;
                     }
                 }
         }
