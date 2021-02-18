@@ -275,8 +275,9 @@ else
          //Vector3 handDirection = (Camera.main.ScreenToWorldPoint(Input.mousePosition) - gameObject.transform.parent.parent.position).normalized;
         //float handAngle = Mathf.Atan2(direct.x, direct.y) * Mathf.Rad2Deg;
         Vector2 way = transform.right;
-        float bulletAngle = Mathf.Atan2(way.x, way.y) * Mathf.Rad2Deg;
         direct.Normalize();
+        // what i was doing was using way instead of direct to just shoot out front of gun
+        float bulletAngle = Mathf.Atan2(direct.x, direct.y) * Mathf.Rad2Deg;
         if (shoot == false)
         {
             GameObject b = Instantiate(BulletPrefab) as GameObject;
@@ -304,7 +305,7 @@ else
             {
                  b.transform.rotation = Quaternion.Euler(0.0f, 0.0f, -bulletAngle);
             }
-            body.velocity = way * BulletSpeed;
+            body.velocity = direct * BulletSpeed;
         }
         control.ActivateEmission();
         source.PlayOneShot(source.clip);

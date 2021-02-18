@@ -39,6 +39,14 @@ public class Collided : MonoBehaviour {
             {
                 stick.HasCollidedWalk = false;
             }
+            if(!HasCollidedWalk && !otherleg.HasCollidedWalk)
+            {
+                stick.freefall = true;
+            }
+            else
+            {
+                stick.freefall = false;
+            }
             if (HasCollidedJump && otherleg.HasCollidedJump)
             {
                 stick.HasCollidedJump = true;
@@ -55,13 +63,21 @@ public class Collided : MonoBehaviour {
     void OnCollisionEnter2D (Collision2D coll) {
         if(otherleg != null)
         {
-            if(coll.gameObject.tag == "World" || coll.gameObject.tag == "Metallic")
+            if(coll.gameObject.tag == "World" || coll.gameObject.tag == "Metallic" || coll.gameObject.tag == "Incline")
             {
+                stick.flying = false;
                 if(gameObject.tag == "rFoot")
                 {
                     Vector3 direction = coll.GetContact(0).normal;
                     float angle = Mathf.Atan2(direction.x, direction.y) * Mathf.Rad2Deg; 
-                    stick.rLegRestRotation = angle;
+                    if(Mathf.Abs(angle) < 80)
+                    {
+                        if(!stick.crouching && !stick.proning)
+                        {
+                            //stick.muscleR.restRotation = Mathf.Round(-angle);
+                            //stick.body_muscle.restRotation = Mathf.Round(-angle);
+                        }
+                    }
                      //stick.WalkRightVector = -Vector2.Perpendicular(direction) * 1000;
                     //stick.WalkLeftVector = Vector2.Perpendicular(direction) * 1000;
                 }
@@ -69,7 +85,15 @@ public class Collided : MonoBehaviour {
                 {
                     Vector3 direction = coll.GetContact(0).normal;
                     float angle = Mathf.Atan2(direction.x, direction.y) * Mathf.Rad2Deg; 
-                    stick.lLegRestRotation = angle;
+                    if(Mathf.Abs(angle) < 80)
+                    {
+                        
+                        if(!stick.crouching && !stick.proning)
+                        {
+                            //stick.muscleL.restRotation = Mathf.Round(-angle);
+                            //stick.body_muscle.restRotation = Mathf.Round(-angle);
+                        }
+                    }
                     //stick.WalkRightVector = -Vector2.Perpendicular(direction) * 1000;
                     //stick.WalkLeftVector = Vector2.Perpendicular(direction) * 1000;
                 }
@@ -84,7 +108,7 @@ public class Collided : MonoBehaviour {
         }
     }
     void OnCollisionStay2d (Collision2D coll) {
-        if(coll.gameObject.tag == "World" || coll.gameObject.tag == "Metallic")
+        if(coll.gameObject.tag == "World" || coll.gameObject.tag == "Metallic" || coll.gameObject.tag == "Incline")
         {
             HasCollidedJump = true;
             HasCollidedWalk = true;
@@ -96,7 +120,7 @@ public class Collided : MonoBehaviour {
     }
     void OnCollisionExit2D(Collision2D coll)
     {
-        if(coll.gameObject.tag == "World" || coll.gameObject.tag == "Metallic")
+        if(coll.gameObject.tag == "World" || coll.gameObject.tag == "Metallic" || coll.gameObject.tag == "Incline")
         {
             HasCollidedJump = false;
             HasCollidedWalk = false;

@@ -17,11 +17,13 @@ public class Grid : MonoBehaviour {
     public List<Node> path;
     public Node firstNode;
     public List<Node> NeighbourLs;
+    public Node pathNode;
+    public int pathCounter;
     void Start()
     {
         renderer = GetComponent<Renderer>();
         //Debug.LogError("***REMOVED***me");
-        nodeRadius = 1f;
+        nodeRadius = 0.2f;
         nodeDiameter = nodeRadius * 2;
         gridHeight = renderer.bounds.size.y; 
         gridWidth = renderer.bounds.size.x;
@@ -34,16 +36,90 @@ public class Grid : MonoBehaviour {
             {
                 // shouldn't this be node diameter?this why have to *2 later
                 Vector3 position = new Vector3(renderer.bounds.min.x + (nodeDiameter * x),renderer.bounds.min.y + (nodeDiameter * y),0);
-                bool walkable = !Physics2D.OverlapCircle(position, nodeRadius);        
+                Collider2D walkable = Physics2D.OverlapCircle(position, nodeRadius);
+                bool walkable2 = Physics2D.OverlapCircle(position, nodeRadius);      
                 grid[x,y] = new Node();
-                grid[x,y].WalkAble = walkable;
+                grid[x,y].Solid = walkable2;
                 grid[x,y].position = position;
                 grid[x,y].x = x;
                 grid[x,y].y = y;
+                if(walkable)
+                {
+                    grid[x,y].Object = walkable.gameObject;
+                }
                 //Debug.LogError("die");
                 // should prob increase node size
             }
         }
+        for(int x1=1;x1<numNodesX - 1;x1++)
+        {
+            for(int y1=1;y1<numNodesY - 1;y1++)
+            {
+                // shouldn't this be node diameter?this why have to *2 later
+                int yminus1 = y1-1;
+                int yplus1 = y1+1;
+                int xplus1 = x1+1;
+                int xminus1 = x1-1;
+                // this ***REMOVED*** weird man, no work for - 1
+                if(!grid[x1,y1].Solid)
+                {
+                    if(grid[x1,yplus1].Solid || grid[x1,yminus1].Solid || grid[xplus1,y1].Solid || grid[xminus1,y1].Solid)
+                    {
+                        if(grid[xplus1,y1].Solid || grid[xminus1,y1].Solid || grid[x1,yplus1].Solid)
+                        {
+                            grid[x1,y1].ClimbAble = true;
+                        }
+                        else
+                        {
+                            grid[x1,y1].ClimbAble = false;
+                        }
+                        if (grid[xplus1,y1].Solid)
+                        {
+                            if(grid[xplus1,y1].Object.tag == "Incline")
+                            {
+                                grid[x1,y1].Incline = true;
+                            }
+                        }
+                        if(grid[x1,yminus1].Solid)
+                        {
+                            if(grid[x1,yminus1].Object.tag == "Incline")
+                            {
+                                grid[x1,y1].Incline = true;
+                            }
+                        }
+                        if(grid[xminus1,y1].Solid)
+                        {
+                            if(grid[xminus1,y1].Object.tag == "Incline")
+                            {
+                                grid[x1,y1].Incline = true;
+                            }
+                        }
+                        GameObject initObject = null;
+                        LayerMask mask = LayerMask.GetMask("World");
+                        Vector2 origin = new Vector2(grid[x1,y1].position.x, grid[x1,y1].position.y);
+                        Vector2 di = ((new Vector2(grid[x1,y1].position.x, grid[x1,y1].position.y + 10)) - origin).normalized;
+                        RaycastHit2D hit = Physics2D.Raycast(origin,di,1f,mask);
+
+                        if(hit.collider == null)
+                        {
+                            grid[x1,y1].WalkAble = true;
+                        }
+                        else
+                        {
+                            grid[x1,y1].WalkAble = false;
+                        }
+                    }
+                }
+                else
+                {
+                    grid[x1,y1].WalkAble = false;
+                    grid[x1,y1].ClimbAble = false;
+                }
+                //Debug.LogError("die");
+                // should prob increase node size
+            }
+        }
+        
         firstNode = grid[0,0];
 
     }
@@ -52,6 +128,21 @@ public class Grid : MonoBehaviour {
         float yInGrid = ObjectPos.y - renderer.bounds.min.y;
         int NodesInX = Mathf.Min(Mathf.RoundToInt(xInGrid / nodeDiameter), numNodesX - 1);
         int NodesInY = Mathf.Min(Mathf.RoundToInt(yInGrid / nodeDiameter), numNodesX - 1);
+        if(!grid[NodesInX, NodesInY].WalkAble)
+        {
+            if(grid[NodesInX, NodesInY + 1].WalkAble)
+            {
+                return grid[NodesInX, NodesInY + 1];
+            }
+            if(grid[NodesInX + 1, NodesInY].WalkAble)
+            {
+                return grid[NodesInX + 1, NodesInY];
+            }
+            if(grid[NodesInX - 1, NodesInY].WalkAble)
+            {
+                return grid[NodesInX - 1, NodesInY];
+            }
+        }
         //Debug.LogError(NodesInX);
         return grid[NodesInX, NodesInY];
     }
@@ -108,13 +199,9 @@ public class Grid : MonoBehaviour {
                 closedList.Add(currentNode);
                 //Debug.LogError(closedList[1].x);
                 List<Node> Neighbours = GetNeighbours(currentNode);
-                if(Neighbours.Count == 0)
-                {
-                    Debug.LogError("yessirrr:" + currentNode.x);
-                }
                 foreach(Node Neighbour in Neighbours)
                 {
-                    if(!compareNodeToList(Neighbour, closedList) && Neighbour.WalkAble)
+                    if(!compareNodeToList(Neighbour, closedList) && ((Neighbour.WalkAble && currentNode.WalkAble && !Neighbour.ClimbAble) || (currentNode.ClimbAble && Neighbour.ClimbAble && currentNode.y <= Neighbour.y) ||(currentNode.ClimbAble && (Neighbour.WalkAble && !Neighbour.ClimbAble)) || ((currentNode.WalkAble && !currentNode.ClimbAble) && Neighbour.ClimbAble)  || (!Neighbour.Solid && Neighbour.y < currentNode.y && Neighbour.x == currentNode.x)))
                     {
                         // ***REMOVED*** this ***REMOVED*** ***REMOVED***
                         // don't think something to do with neighbours function as never empty
@@ -122,10 +209,9 @@ public class Grid : MonoBehaviour {
                         // but then how does it get through when g cost comp removed?
                         // when this is removed, it starts checking neighbours of neightbours, but here
                         // neighbours seem to dissapear even though all in openList
-                        //Debug.LogError("big");
                         int gCost = currentNode.gCost + CalcHCost(currentNode, Neighbour);
 
-                        if(gCost < Neighbour.gCost || !compareNodeToList(Neighbour, openList) )
+                        if(gCost < Neighbour.gCost || !compareNodeToList(Neighbour, openList))
                         {   
                             Neighbour.Parent = currentNode;
                             //Debug.LogError(Neighbour.)
@@ -186,16 +272,16 @@ public class Grid : MonoBehaviour {
     }
 
     public List<Node> GetPath(Node startNode, Node endNode) {
-        List<Node> path = new List<Node>();
+        List<Node> pat = new List<Node>();
         Node currentNode = endNode;
-        path.Add(currentNode);
+        pat.Add(currentNode);
         int i = 0;
         //Debug.LogError(currentNode.x);
 
         while(i < 50000)
         {
             currentNode = currentNode.Parent;
-            path.Add(currentNode);
+            pat.Add(currentNode);
             if(currentNode.x == startNode.x && currentNode.y == startNode.y)
             {
                 //Debug.Log(i);
@@ -205,8 +291,9 @@ public class Grid : MonoBehaviour {
             //Debug.LogError(i);
             //Debug.LogError(currentNode.x);
         }
-        path.Reverse();
-        return path;
+        pat.Reverse();
+        path = pat;
+        return pat;
     }
 
     public List<Node> GetNeighbours(Node currentNode) {
@@ -290,17 +377,6 @@ public class Grid : MonoBehaviour {
     }
     void Update()
     {
-        if(Input.GetMouseButtonDown(0))
-        {
-            firstNode = GetCurrentNode((Camera.main.ScreenToWorldPoint(Input.mousePosition)));
-            //Debug.LogError("x:" + firstNode.x);
-            //Debug.LogError("y:" + firstNode.y);
-        }
-        if(Input.GetMouseButtonDown(1))
-        {
-            path = PathFind(firstNode, GetCurrentNode((Camera.main.ScreenToWorldPoint(Input.mousePosition))));
-            //Debug.LogError(path.Count);
-        }
     }
     void OnDrawGizmos()
     {
@@ -309,50 +385,53 @@ public class Grid : MonoBehaviour {
             if(grid != null)
             {
         //     Node PlayerNode = GetCurrentNode(Player.position);
-            foreach(Node n in grid)
+            //foreach(Node n in grid)
              {
                  if(path != null)
         {
-           foreach(Node node in path)
-          {
-               Gizmos.color = Color.cyan;
-               Gizmos.DrawCube(node.position, Vector3.one * (nodeRadius * 2));
-            }
+           //foreach(Node node in path)
+          //{
+              // Gizmos.color = Color.cyan;
+               //Gizmos.DrawCube(node.position, Vector3.one * (nodeRadius * 2));
+            //}
         }
       //         if(n.x == PlayerNode.x && n.y == PlayerNode.y)
         //         {
         //             Gizmos.color = Color.cyan;
         //         }
-                if(compareNodeToList(n, NeighbourLs))
-                {
-                    Gizmos.color = Color.yellow;
-                }
-                else if(n.WalkAble && !n.onPath )
-                {
-           Gizmos.color = Color.green;
-         }
-                 else if(!n.onPath)
-           {
-                     Gizmos.color = Color.red;
-           }
+                //if(compareNodeToList(n, NeighbourLs))
+               // {
+                    //Gizmos.color = Color.yellow;
+                //}
+               // else if(n.WalkAble && !n.onPath )
+              //  {
+                    //Gizmos.color = Color.green;
+              //  }
+                // else if(!n.onPath)
+              //  {
+                //     //Gizmos.color = Color.red;
+               // }
         //        // Gizmos.DrawSphere(n.position, nodeRadius);
-                 Gizmos.DrawCube(n.position, Vector3.one * (nodeRadius * 2));
-             }
-            }
+                 //Gizmos.DrawCube(n.position, Vector3.one * (nodeRadius * 2));
+            // }
+           //}
         //         //Debug.LogError(n.WalkAble);
         //     }
         if(path != null)
        {
-           foreach(Node n in path)
-          {
-               Gizmos.color = Color.cyan;
-               Gizmos.DrawCube(n.position, Vector3.one * (nodeRadius * 2));
-            }
+          // foreach(Node n in path)
+         // {
+               //Gizmos.color = Color.cyan;
+               //Gizmos.DrawCube(n.position, Vector3.one * (nodeRadius * 2));
+            //}
         }
-    }
 }
+}
+}}
 public class Node : MonoBehaviour{
     public bool WalkAble;
+    public bool ClimbAble;
+    public bool Solid;
     public Vector3 position;
     public int x;
     public int y;
@@ -361,6 +440,8 @@ public class Node : MonoBehaviour{
     public int gCost;
     public Node Parent;
     public bool onPath;
+    public bool Incline;
+    public GameObject Object;
 
     public void CalcFCost()
     {

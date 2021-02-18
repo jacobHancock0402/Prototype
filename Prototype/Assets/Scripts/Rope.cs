@@ -49,10 +49,12 @@ public class Rope : MonoBehaviour {
                 if(gameObject.tag == "rLeg")
                 {
                     link.tag = "rFoot";
+                    stick.rFoot = link;
                 }
                 else
                 {
                     link.tag = "lFoot";
+                    stick.lFoot = link;
                 }
             }
             else
@@ -62,7 +64,7 @@ public class Rope : MonoBehaviour {
             BoxCollider2D collider = link.GetComponent<BoxCollider2D>();
             link.transform.position = new Vector3(
             gameObject.transform.position.x, 
-            NewestChild.position.y - Mathf.Abs(collider.bounds.max[1] - collider.bounds.min[1]), 
+            NewestChild.position.y -(0.75f* Mathf.Abs(collider.bounds.max[1] - collider.bounds.min[1])), 
             gameObject.transform.position.z);
             link.transform.SetParent(gameObject.transform);
             Rigidbody2D body = link.AddComponent(typeof(Rigidbody2D)) as Rigidbody2D;
@@ -219,6 +221,17 @@ public class Rope : MonoBehaviour {
                         grab.Stick = stick;
                         grab.Gun = Gun;
                         stick.lHand = link;
+                    }
+                }
+                if(i==0)
+                {
+                    if(gameObject.tag == "lArm")
+                    {
+                        stick.LShoulderMuscle = muscle;
+                    }
+                    if(gameObject.tag == "rArm")
+                    {
+                        stick.RShoulderMuscle = muscle;
                     }
                 }
             }

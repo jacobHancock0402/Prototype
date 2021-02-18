@@ -30,9 +30,33 @@ public class Stickman: MonoBehaviour
         //}
    // } 
     public AudioSource Soft_Bullets;
+    public bool propelling;
     public bool swinging;
+    public function propelFunct;
+    public float someTimer1 = 0f;
     public bool swingingL;
+    public GameObject Head;
+    public string proneDir;
     public bool swingingR;
+    public List<Node> path;
+    public List<function> animations;
+    public bool resettingRot;
+    public Grid Grid;
+    public bool proning = false;
+    public string playerDir = "right";
+    public bool ClimbingPhase;
+    public _Muscle LShoulderMuscle;
+    public _Muscle RShoulderMuscle;
+    public bool animating = false;
+    public bool Flying;
+    public GameObject rFoot;
+    public string crouchDir;
+    public int pathNodeCounter = 0;
+    public GameObject lFoot;
+    public Node firstNode;
+    public Node currentNode;
+    public Node pathNode;
+    public int pathCounter;
     public float AirTime;
     public float rLegRestRotation = 0;
     public float lLegRestRotation = 0;
@@ -64,7 +88,7 @@ public class Stickman: MonoBehaviour
     // should prob fix this walking and clean climbing then make game actually fun
     // walking is key to this as right now way too imbalanced and ***REMOVED*** for fun
     // although perhaps game could be like funny?
-    public bool crouching;
+    public bool crouching = false;
     // this might cause problems if die midair, like you can't jump after spawn. = make reset
     public bool jumping = false;
     public float head_mass;
@@ -134,6 +158,7 @@ public class Stickman: MonoBehaviour
     public bool disableR;
     public bool disableL;
     public float ti = 0;
+    public bool freefall = false;
     public bool holdingR;
     public bool holdingL;
     public bool posturingL;
@@ -149,6 +174,7 @@ public class Stickman: MonoBehaviour
     public GameObject arm;
     public bool pivoting;
     public string way;
+    public bool priorityAnimating;
     public Rigidbody2D rArmRigid;
     public Rigidbody2D lArmRigid;
     public string dir;
@@ -167,6 +193,9 @@ public class Stickman: MonoBehaviour
     public _Muscle muscleR;
     public float SprintMultiplier;
     public AudioSource[] AudioClips;
+    public _Muscle head_muscle;
+    public bool floating = false;
+    public bool Player;
  
  
     // Update is called once per frame
@@ -178,13 +207,16 @@ public class Stickman: MonoBehaviour
     // gravity scale = 0 means jank is minimal so it's clear rigid body is at fault
     public void Start()
     {
+        propelFunct = new function();
+        animations = new List<function>();
         Audios = new Dictionary<string, AudioSource[]>();
         Audio_Map = new Dictionary<string, int>();
         AudioSource[] metalAudio = {Soft_Bullets, Loud_Bullets, defaultBulletHit};
         Audios.Add("Metallic", metalAudio);
         Audio_Map.Add("Soft Bullets", 0);
         Audio_Map.Add("Loud Bullets", 1);
-        Audio_Map.Add("defaultBulletHit",2);
+        Audio_Map.Add("defaultBulletHit",2); 
+       //Debug.logger.logEnabled = false;
 
         GameObject[] metals = GameObject.FindGameObjectsWithTag("Metallic");
         foreach(GameObject metal in metals)
@@ -206,6 +238,10 @@ public class Stickman: MonoBehaviour
                 {
                     body_muscle = muscle;
                 }
+                else if(muscle.bone.tag == "Head")
+                {
+                    head_muscle = muscle;
+                }
             }
             ogJumpVector = JumpVector;
             ogWalkLeftVector = WalkLeftVector;
@@ -219,20 +255,24 @@ public class Stickman: MonoBehaviour
     private void Update()
     {
         direction = (Camera.main.ScreenToWorldPoint(Input.mousePosition) - lArm.transform.position).normalized;
-        angle = Mathf.Atan2(direction.x, direction.y) * Mathf.Rad2Deg;
+        angle = Mathf.Round(Mathf.Atan2(direction.x, direction.y) * Mathf.Rad2Deg);
         //WalkRightVector = direction * 2000;
         //WalkLeftVector = direction * 2000;
         //WalkRightVector = WalkRightVector 
         int q = 0;
         foreach (_Muscle muscle in muscles)
         {   
-            
+            if(freefall)
+            {
+                //muscle.activated = false;
+            }
+            //muscle.restRotation = 90;
             if (muscle.bone)
             {
 
                 if (collided == true && flying)
                 {
-                    muscle.restRotation = 0;
+                    //muscle.restRotation = 0;
                 }
                 // change this to shooting arm is using 2hands
                 if (muscle.bone.gameObject.tag == "rArm")
@@ -277,6 +317,9 @@ public class Stickman: MonoBehaviour
 
         // legitimately no clue why right side doesn't work
         // seems to go through function and everything, but like resets quickly
+        if(Player)
+        {
+
 
  
         if (Input.GetKeyDown(KeyCode.D))
@@ -288,23 +331,62 @@ public class Stickman: MonoBehaviour
         {
             if(crouching)
             {
-                wasCrouched = true;
-                CrouchAni();
+                function funct2 = new function();
+                funct2.name = "GetUpAni";
+                funct2.animations = animations;
+                animations.Add(funct2);
+                crouching = false;
+               // Debug.LogError("cameinforthecheddar");
+            }
+            else
+            {
+                //Debug.LogError("big***REMOVED***weon");
+                wasCrouched = false;
+                CrouchAniDone = false;
+                function funct1 = new function();
+                funct1.name = "CrouchAni";
+                funct1.animations = animations;
+                animations.Add(funct1);
+                crouching = true;
+            }
+        }
+        if(Input.GetKeyDown(KeyCode.K))
+        {
+            if(proning)
+            {
+                function funct2 = new function();
+                funct2.name = "GetUpAni";
+                funct2.animations = animations;
+                animations.Add(funct2);
                 crouching = false;
             }
             else
             {
-                wasCrouched = false;
-                CrouchAniDone = false;
-                CrouchAni();
-                crouching = true;
+                function funct1 = new function();
+                funct1.name = "StraightAni";
+                funct1.animations = animations;
+                animations.Add(funct1);
             }
         }
         if(crouching)
         {
-            if((Direction == "Left" && body_muscle.restRotation == -90) || (Direction == "Right" && body_muscle.restRotation == 90))
+            if((playerDir == "left" && body_muscle.restRotation == -90) || (playerDir == "right" && body_muscle.restRotation == 90))
             {
-                CrouchAni();
+                function funct = new function();
+                funct.name = "CrouchAni";
+                funct.animations = animations;
+                animations.Add(funct);
+            }
+        }
+        if(proning)
+        {
+            if(!priorityAnimating)
+            {
+                function funct = new function();
+                funct.animations = animations;
+                funct.name = "BodyToMouse";
+                funct.notPriority = true;
+                animations.Add(funct);
             }
         }
         if((swingingR || swingingL) && !HasCollidedWalk && !HasCollidedJump && (Time.time - AirTime > 1f))
@@ -361,7 +443,10 @@ public class Stickman: MonoBehaviour
         }
 
         if (Input.GetKeyDown(KeyCode.R)){
-            GetUpAni();
+            function funct = new function();
+            funct.name = "GetUpAni";
+            funct.animations = animations;
+            animations.Add(funct);
             flying = false;
         }
         if(Input.GetKeyDown(KeyCode.Space))
@@ -411,7 +496,6 @@ public class Stickman: MonoBehaviour
         if(Input.GetKeyDown(KeyCode.F) && flying == false)
         {
             Fly();
-            flying = true;
         }
 
         if (Input.GetMouseButtonDown(1))
@@ -492,6 +576,13 @@ public class Stickman: MonoBehaviour
                 posturingR = false;
             }
         }
+        if(Input.GetKeyDown(KeyCode.P))
+        {
+            muscleL.bone.AddForce(new Vector2(0f, 1500f), ForceMode2D.Impulse);
+            muscleR.bone.AddForce(new Vector2(0f, 1500f), ForceMode2D.Impulse);
+            rbBody.AddForce(new Vector2(-1000f,0f), ForceMode2D.Impulse);
+        }
+
 
         if(NowHoldingL)
         {
@@ -686,6 +777,7 @@ public class Stickman: MonoBehaviour
         {
             pivoting = false;
         }
+    }
         
 
         if (pivoting)
@@ -734,23 +826,17 @@ public class Stickman: MonoBehaviour
             }
         }
 
-        if (disableL == false) 
+        if (disableL == false && !priorityAnimating) 
         {
-            Vector3 direction = (Camera.main.ScreenToWorldPoint(Input.mousePosition) - lArm.transform.position).normalized;
-            float angle = Mathf.Atan2(direction.x, direction.y) * Mathf.Rad2Deg;
-            // angle shouldn't be negative but otherwise it pretty much goes in opposite direction
             foreach(_Muscle muscle in muscles)
             {
                 if(muscle.bone.gameObject.tag == "lArm")
                 {
-                    //if(holdingL)
-                   // {
-                       // muscle.bone.AddForce(direction / 5, ForceMode2D.Impulse);
-                   // }
                     muscle.restRotation = -angle + 180;
                 }
-            
             }
+            // angle shouldn't be negative but otherwise it pretty much goes in opposite direction
+            
 
             //Transform transGun = lArm.transform.GetChild(rArm.transform.childCount - 1);
             //if(transGun.childCount > 0)
@@ -771,27 +857,25 @@ public class Stickman: MonoBehaviour
             //lArmRigid.freezeRotation = true;
         }
 
-        if (disableR == false)
+        if (disableR == false && !priorityAnimating)
         {
             disable = false;
-            Vector3 direction = (Camera.main.ScreenToWorldPoint(Input.mousePosition) - lArm.transform.position).normalized;
-            float angle = Mathf.Atan2(direction.x, direction.y) * Mathf.Rad2Deg;
             // angle shouldn't be negative but otherwise it pretty much goes in opposite direction
             Debug.Log("ballinlikeim24");
             int j = 0;
+            // this makes game run like ***REMOVED*** at times 
+            // also has problems with having multiple not priority anis at same time
+            //function funct = new function();
+            //funct.name = "aim";
+            //funct.notPriority = true;
+            //funct.animations = animations;
+            //animations.Add(funct);
+
             foreach(_Muscle muscle in muscles)
             {
-                j++;
-                if(muscle.bone.tag == "rArm")
+                if(muscle.bone.gameObject.tag == "rArm")
                 {
-                    muscle.restRotation = - angle + 180;
-                    //if(holdingR)
-                   // {
-                        //muscle.bone.AddForce(direction / 1000000, ForceMode2D.Impulse);
-                  //  }
-                    //muscle.bone.gameObject.transform.rotation = Quaternion.Euler(0.0f, 0.0f, -angle + 90); // = new Vector3(muscle.bone.transform.rotation.x, muscle.bone.transform.rotation.y, angle);
-                    Debug.Log(muscle.restRotation);
-                    //muscle.bone.freezeRotation = true;
+                    muscle.restRotation = -angle + 180;
                 }
             }
             
@@ -937,8 +1021,8 @@ public class Stickman: MonoBehaviour
             }
             moving = true;
         }
- 
-        if (Input.GetButtonUp("Horizontal"))
+        //Debug.LogError(body_muscle.restRotation);
+        if (Input.GetButtonUp("Horizontal") && Player)
         {
             Left = false;
             Right = false;
@@ -987,39 +1071,51 @@ public class Stickman: MonoBehaviour
             rbLLeg.AddForce(direction * 100, ForceMode2D.Impulse);
             tim = Time.time;
         }
-        if (!Sliding && Right == true && Left == false  && (Time.time - tim) > delay && HasCollidedWalk)
+        if (!Sliding && Right == true && (Time.time - tim) > delay)
         {
-            moving = true;
-            //foreach(_Muscle muscle in muscles)
-            //{
-                //if(muscle.bone.gameObject.tag != "rLeg" && muscle.bone.gameObject.tag != "lLeg")
+            if(HasCollidedWalk)
+            {
+                moving = true;
+                //foreach(_Muscle muscle in muscles)
                 //{
-                    //muscle.restRotation = 15;
+                    //if(muscle.bone.gameObject.tag != "rLeg" && muscle.bone.gameObject.tag != "lLeg")
+                    //{
+                        //muscle.restRotation = 15;
+                    //}
                 //}
-            //}
-            if(swinging)
-            {
-                Swivel();
-            }
-            else
-            {
-                if(lastDir == "left")
+                if(swinging)
                 {
-                    Jump();
-                    tim = Time.time;
+                    Swivel();
                 }
                 else
                 {
-                    if(HasCollidedWalk && stepR == "right")
+                    if(lastDir == "left")
                     {
-                        Invoke("Step1Right", 0f);
+                        Jump();
+                        if(crouching)
+                        {
+                            CrouchAni();
+                        }
+                        tim = Time.time;
                     }
-                    else if(HasCollidedWalk && stepR == "left")
+                    else
                     {
-                        Invoke("Step2Right", 0f);
+                        if(HasCollidedWalk && stepR == "right")
+                        {
+                            Invoke("Step1Right", 0f);
+                        }
+                        else if(HasCollidedWalk && stepR == "left")
+                        {
+                            Invoke("Step2Right", 0f);
+                        }
                     }
                 }
             }
+            else
+            {
+                body_muscle.bone.AddForce(new Vector2(100f,0f), ForceMode2D.Impulse);
+            }
+            playerDir = "right";
             lastDir = "right";
         }
 
@@ -1029,41 +1125,53 @@ public class Stickman: MonoBehaviour
         // way to little mass on dude to effect rope
         // could increase? or add force to rope although this would look weird
         // could try and simulate a weigth at teh end of the rope
-        else if (!Sliding && Left == true && Right == false && (Time.time - tim) > delay && HasCollidedWalk)
+        else if (!Sliding && Left == true && (Time.time - tim) > delay)
         {
-            moving = true;
-            if(swinging)
+            if(HasCollidedWalk)
             {
-                Swivel();
+                moving = true;
+                if(swinging)
+                {
+                    Swivel();
+                }
+                else
+                {
+                    if(lastDir == "right")
+                    {
+                        if(crouching)
+                        {
+                            CrouchAni();
+                        }
+                        Jump();
+                        tim = Time.time;
+                    }
+                    //foreach(_Muscle muscle in muscles)
+                    //{
+                        //if(muscle.bone.gameObject.tag != "rLeg" && muscle.bone.gameObject.tag != "lLeg")
+                        //{
+                        // muscle.restRotation = -15;
+                        //}
+                    //}
+                    // i should really add in ability to climb up slopes and ***REMOVED*** instead of just jumping
+                    else
+                    {
+                        if(HasCollidedWalk && stepL == "left")
+                        {
+                            Invoke("Step1Left", 0f);
+                        }
+                        else if(HasCollidedWalk && stepL == "right")
+                        {
+                            Invoke("Step2Left", 0f);
+                        }
+                    }
+                }
             }
             else
             {
-                if(lastDir == "right")
-                {
-                    Jump();
-                    tim = Time.time;
-                }
-                //foreach(_Muscle muscle in muscles)
-                //{
-                    //if(muscle.bone.gameObject.tag != "rLeg" && muscle.bone.gameObject.tag != "lLeg")
-                    //{
-                    // muscle.restRotation = -15;
-                    //}
-                //}
-                // i should really add in ability to climb up slopes and ***REMOVED*** instead of just jumping
-                else
-                {
-                    if(HasCollidedWalk && stepL == "left")
-                    {
-                        Invoke("Step1Left", 0f);
-                    }
-                    else if(HasCollidedWalk && stepL == "right")
-                    {
-                        Invoke("Step2Left", 0f);
-                    }
-                }
-                lastDir = "left";
+                body_muscle.bone.AddForce(new Vector2(-100f,0f), ForceMode2D.Impulse);
             }
+            playerDir = "left";
+            lastDir = "left";
         }
         if(Time.time - tim > 2)
         {
@@ -1076,6 +1184,372 @@ public class Stickman: MonoBehaviour
         {
             moving = true;
         }
+        if(ClimbingPhase)
+        {
+            Right = false;
+            Left = false;
+            // do everything in here
+            // have a phase of climbing the wall by attaching to nodes
+            // then when at top, where head y lines up with nodes that move horiz
+            // then try to attach to those nodes
+            // maybe try to raycast or sum to see if you can reach the node ,then pick furthest one
+        }
+        if(animations.Count > 0)
+        {
+            List<function> temp = animations;
+            int newCounter = 0;
+            function setThisFunc = animations[0];
+            int index = 0;
+            if(animations[0].notPriority)
+            {
+                foreach(function func in temp)
+                {
+                    if(!func.notPriority)
+                    {
+                        setThisFunc = func;
+                        index = newCounter;
+                        break;
+                    }
+                    if(func.name != animations[0].name)
+                    {
+                        setThisFunc = func;
+                        index = newCounter;
+                    }
+                    newCounter++;
+                }
+                animations[0] = setThisFunc;
+                if(newCounter>1)
+                {
+                    animations.RemoveAt(index);
+                }
+            }
+            //Debug.LogError("fat***REMOVED***" + animations[0].name);
+            //Debug.LogError("***REMOVED***" + animations[0].notPriority + animations[0].name + animations[0].started + animations[0].finished);
+            if(!animations[0].started)
+            {
+                if(!animations[0].notPriority)
+                {
+                    priorityAnimating = true;
+                }
+                else
+                {
+                    priorityAnimating = false;
+                }
+                Invoke(animations[0].name,0f);
+                animations[0].started = true;
+            }
+            //Debug.LogError("howyoudo" + animations[0].name + animations[0].finished);
+            if(animations[0].finished)
+            {
+                //priorityAnimating = false;
+                //Debug.LogError("iamhere" + animations[0].name + animations[0].finished);
+                animations.RemoveAt(0);
+            }
+        }
+
+        else
+        {
+            priorityAnimating = false;
+        }
+        //Debug.Log("hello");
+        // this ***REMOVED*** is stupid as ***REMOVED***ing balls
+        // it detects at such weird distances
+        // and then like it won't detect after moving close like the f
+        
+        //Debug.DrawRay(Body.transform.position, new Vector3(rbHead.transform.position.x + 5, rbHead.transform.position.y, rbHead.transform.position.z) - rbHead.transform.position);
+        if(!Player && !ClimbingPhase)
+        {
+            LayerMask mask = LayerMask.GetMask("World");
+            Vector2 origin = new Vector2(Body.transform.position.x, Body.transform.position.y);
+            Vector2 origin2 = new Vector2(rFoot.transform.position.x, rFoot.transform.position.y + 2);
+            Vector2 origin3 = new Vector2(Body.transform.position.x, rFoot.transform.position.y);
+            Vector2 origin4 = new Vector2(Body.transform.position.x, rFoot.transform.position.y + 2);
+            Vector2 origin5 = new Vector2(Head.transform.position.x + 2, rFoot.transform.position.y);
+            Vector2 origin6 = new Vector2(Head.transform.position.x + 2, rFoot.transform.position.y + 2);
+            Vector2 di = ((new Vector2(Body.transform.position.x + 10, Body.transform.position.y)) - origin).normalized;
+            Vector2 di2 = ((new Vector2(Body.transform.position.x, Body.transform.position.y + 10)) - origin).normalized;
+            Vector2 di3 = ((new Vector2(rFoot.transform.position.x + 10, rFoot.transform.position.y + 2)) - origin2).normalized;
+            Vector2 di4 = ((new Vector2(Body.transform.position.x - 10, Body.transform.position.y)) - origin).normalized;
+            Vector2 di5 = ((new Vector2(lFoot.transform.position.x - 10, rFoot.transform.position.y + 2)) - origin2).normalized;
+            Vector2 di6 = (origin4 - origin3).normalized;
+            Vector2 di7 = (origin6 - origin5).normalized;
+
+            //float ang = Mathf.Atan2(di.x, di.y) * Mathf.Rad2Deg;
+            //Debug.LogError("ang" + ang);
+            //Vector3 dire = (Camera.main.ScreenToWorldPoint(Input.mousePosition) - gameObject.transform.position).normalized;
+            //float ange = Mathf.Atan2(dire.x, dire.y) * Mathf.Rad2Deg;
+            //Debug.LogError("ange" + ange);
+
+
+            RaycastHit2D hit1 = Physics2D.CircleCast(origin,1.5f,di,3f,mask);
+            RaycastHit2D hit2 = Physics2D.Raycast(origin,di2,6f,mask);
+            RaycastHit2D hit3 = Physics2D.Raycast(origin2,di3,7f,mask);
+            RaycastHit2D hit4 = Physics2D.CircleCast(origin,1.5f,di4,3f,mask);
+            RaycastHit2D hit5 = Physics2D.Raycast(origin2,di5,7f,mask);
+            RaycastHit2D hit6 = Physics2D.Raycast(origin3,di6,2f,mask);
+            RaycastHit2D hit7 = Physics2D.Raycast(origin5,di7,2f,mask);
+            Debug.DrawRay(origin3,di6);
+            Debug.DrawRay(origin, di2);
+
+            // trouble getting up incline without the angle
+            // 
+
+
+            //Debug.Log(hit.collider.gameObject.tag);
+            // it keeps rotating because doesn't know which way to go when getting called multiple times
+
+            //have to implement way to get up afterwards, and should prob find a way to implement the hit2 again
+
+            // also need to repeat all these raycasts in opp direction
+            bool enteredAboveLoop = false;
+            if(hit6.collider == null)
+            {
+
+                Debug.LogError("fatman");
+            }
+            else
+            {
+                Debug.LogError("blackman");
+            }
+            if((hit3.collider != null && playerDir == "right" )|| (hit5.collider != null && playerDir == "left") || hit6.collider != null)
+            {
+               Debug.LogError("flying"); 
+                if(!proning)
+                {
+                    Debug.LogError("proning");
+                    if(crouching)
+                    {
+                        //wasCrouched = true;
+                        function funct1 = new function();
+                        funct1.name = "GetUpAni";
+                        funct1.animations = animations;
+                        animations.Add(funct1);
+                        crouching = false;  
+                    }
+                    proneDir = playerDir;
+                    function funct2 = new function();
+                    funct2.name = "StraightAni";
+                    funct2.animations = animations;
+                    animations.Add(funct2);
+                }
+                enteredAboveLoop = true;
+            }
+            else if(proning && hit6.collider == null)
+            {
+                Debug.LogError("entering");
+                proning = false;
+                function funct = new function();
+                funct.name = "GetUpAni";
+                funct.animations = animations;
+                animations.Add(funct);
+            }
+            if(((hit1.collider != null && playerDir == "right" ) || (hit4.collider != null && playerDir == "left") || (hit2.collider != null )) && !proning && !enteredAboveLoop){
+                Debug.LogError("lhi");
+                    //Debug.LogError("lhiddd");
+                    //Debug.LogError("crouch" + crouching);
+                if(!crouching)
+                {
+                        //Debug.LogError("***REMOVED***");
+                    wasCrouched = false;
+                    CrouchAniDone = false;
+                    function funct = new function();
+                    funct.name = "CrouchAni";
+                    funct.animations = animations;
+                    animations.Add(funct);
+                    crouching = true;
+                }
+                    //CrouchAni();
+            }
+            else if(crouching && hit2.collider == null )
+            {
+                wasCrouched = true;
+                function funct = new function();
+                funct.name = "CrouchAni";
+                funct.animations = animations;
+                animations.Add(funct);
+                crouching = false;            
+                //Debug.LogError("saint***REMOVED***an");
+            }
+            //Debug.LogError(path[0].x);
+            if(Input.GetKeyDown(KeyCode.O))
+            {
+                firstNode = Grid.GetCurrentNode(rFoot.transform.position);
+                path = Grid.PathFind(firstNode, Grid.GetCurrentNode((Camera.main.ScreenToWorldPoint(Input.mousePosition))));
+                pathNode = path[1];
+                currentNode = path[0];
+                pathNodeCounter = 1;
+                //Debug.LogError(path.Coude = path[0];
+                counter = 0;
+            }
+            currentNode = Grid.GetCurrentNode(Body.transform.position);
+            Node lFootNode = Grid.GetCurrentNode(lFoot.transform.position);
+            Node rFootNode = Grid.GetCurrentNode(rFoot.transform.position);
+            Node forwardFootNode = new Node();
+            if(playerDir == "right")
+            {
+                forwardFootNode = rFootNode;
+            }
+            else
+            {
+                forwardFootNode = lFootNode;
+            }
+            if(!lFootNode.WalkAble)
+            {
+                lFootNode = Grid.grid[lFootNode.x, lFootNode.y + 1];
+                //Debug.LogError("whomamamdis");
+            }
+            if(!rFootNode.WalkAble)
+            {
+                rFootNode = Grid.grid[rFootNode.x, rFootNode.y + 1];
+                //Debug.LogError("whosondis");
+            }
+            if(path.Count > 0)
+            {
+
+
+
+                if((path[path.Count - 1].x == currentNode.x || path[path.Count - 1].x == rFootNode.x || path[path.Count - 1].x == lFootNode.x) && (path[path.Count - 1].y == rFootNode.y || path[path.Count - 1].y == lFootNode.y || path[path.Count - 1].y == rFootNode.y + 1 || path[path.Count - 1].y == lFootNode.y + 1))
+                {
+                    pathNodeCounter = path.Count;
+                }
+                //Debug.LogError("Nandead");
+                int counter2 = 0;
+                // this ***REMOVED*** is actually ***REMOVED***
+                // all horiz is fine apart from the fact it can have problems on end of weird geometry because can't make path because rules
+                // but this start like 20 metres out from jump for whatever ***REMOVED***ing reason
+                // limiting restirciton does legit nothing  
+                // sometimes it just doesn't jump at all tho so weird
+                // also the walking kinda weird now as has collided walk only has to be true on one fooit
+                if(rFootNode.WalkAble && lFootNode.WalkAble)
+                {
+
+
+                    if(pathNodeCounter < path.Count)
+                    {
+                        Debug.LogError(path.Count);
+                        counter2 = 0;
+                        if(pathNode.x < forwardFootNode.x || (forwardFootNode.x == pathNode.x && lastDir == "left"))
+                        {
+                            Right = false;
+                            Left = true;
+                        }
+                        else if (pathNode.x > forwardFootNode.x || (forwardFootNode.x == pathNode.x && lastDir == "right"))
+                        {
+                            Right = true;
+                            Left = false;
+                        }
+                        else
+                        {
+                            Right = false;
+                            Left = false;
+                        }
+                        if(pathNodeCounter < path.Count - 1)
+                        {
+
+
+                            if(path[pathNodeCounter + 1].y > (rFootNode.y + 1) || path[pathNodeCounter + 1].y > (lFootNode.y + 1))
+                            {
+                                //jump = true;
+                                //Debug.LogError("Pathnod" + pathNode.y);
+                                //Debug.LogError("PlayerNode" + rFootNode.y + " " + lFootNode.y);
+                                foreach(Node nodes in path)
+                                {
+                                    if(nodes.x == pathNode.x && nodes.y >= currentNode.y)
+                                    {
+                                        ClimbingPhase = true;
+                                        counter2++;
+                                    }
+
+                                }
+                                if(counter2 == 0 && HasCollidedJump && !pathNode.Incline && Time.time - someTimer1 > 3f)
+                                {
+                                    someTimer1 = Time.time;
+                                    if(lastDir == "right")
+                                    {
+                                        muscleR.bone.AddForce(new Vector2(0f, 1500f), ForceMode2D.Impulse);
+                                        muscleL.bone.AddForce(new Vector2(0f, 1500f), ForceMode2D.Impulse);
+                                        rbBody.AddForce(new Vector2(1000f,0f), ForceMode2D.Impulse);
+                                    }
+                                    else
+                                    {
+                                        muscleL.bone.AddForce(new Vector2(0f, 1500f), ForceMode2D.Impulse);
+                                        muscleR.bone.AddForce(new Vector2(0f, 1500f), ForceMode2D.Impulse);
+                                        rbBody.AddForce(new Vector2(-1000f,0f), ForceMode2D.Impulse);
+                                    }
+                                    ClimbingPhase = false;
+                                }
+                                Flying = true;
+
+                                //Flying = true;
+                            }
+                            else
+                            {
+                                ClimbingPhase = false;
+                            }
+                        }
+                        else
+                        {
+                            Flying = false;
+                            ClimbingPhase = false;
+                        }
+                    }
+                    else
+                    {
+                        Debug.LogError("dieonmtgrave");
+                        Right = false;
+                        //jump = false;
+                        Left = false;
+                    }
+                    int count = 0;
+                    foreach(Node nodes in path)
+                    {
+                        if((nodes.x == rFootNode.x || nodes.x == lFootNode.x)&& (nodes.y == lFootNode.y || nodes.y == rFootNode.y || nodes.y == lFootNode.y + 1 || nodes.y == rFootNode.y + 1|| nodes.y == lFootNode.y - 1|| nodes.y == rFootNode.y - 1))
+                        {
+                            if(count  < path.Count - 1 && count + 1 > pathNodeCounter && nodes.WalkAble)
+                            {
+                                pathNode = path[count + 1];
+                                pathNodeCounter = count + 1;
+                            }
+                        }
+                        count++;
+                    }
+                }
+        }
+        // all ai ***REMOVED*** seems fine now, can go under and crawl and crouch(i think)
+        // now that foot has angle it's doing the weird not walk thing again on inclines, when transitioning from 2 diff surface
+        // otherwise after that fixed just sure up the walking and then do the jumping
+
+            // solution above is stupid af, but don#t know ho;else to fix
+            // the problem is that he sometimes just stops moving after dropping down, depending on the height, leading me to believe that the node is getting set to the right  one or
+            // otherwise everything should be good, so now climbing
+            // doesn't even work lol ***REMOVED*** off you little ***REMOVED***ing ***REMOVED***, why does it depend on height, but then allowing leniency changes nothing, ***REMOVED***
+
+            
+            //nodes.x == rFootNode.x || nodes.x == lFootNode.x )
+
+            // so all horiz good, except still stick when moving off stuff
+            // i think when doing y, we should check if > nodeoffeet.y but not < body.y, then just jump forward and fly
+            // else if > body then start some sort of climb by putting hands on the nodes point
+            // also have to figure out crouching and ***REMOVED***
+            // aw ***REMOVED*** this might not work because the y would start at feet
+            // maybe check if there's a node at x and body y, if not then can do the jump ***REMOVED***, otherwise climb
+        
+            // x movement should be ok
+            // but now for the real challenge of y movement
+            // the problem is that i dont know how to refernce the body's y position, as the pathfind is obvsiously right at feet when walking
+            // but when climbing, they'd be like parallel
+            // maybe minus a little from body y when not climbing, then remove this when you are
+          //  if(jump)
+          //  {
+              //  if(player.y == currentNode.y + 3)
+              //  {
+                   // counter++;
+                   // pathNode = path[counter + 1];
+                   // currentNode = path[counter];
+                //}
+            //}
+        }
+    }
         //else if(!flying && muscles[0].restRotation == 70)
         //{
             //muscles[0].restRotation = 0;
@@ -1088,9 +1562,6 @@ public class Stickman: MonoBehaviour
             //}
             //count = 0;
         //}
-        Debug.Log("thismadcityirunma***REMOVED***");
-        collided = false;
-    }
     public void Swivel()
     {
         Vector3 direction = (Camera.main.ScreenToWorldPoint(Input.mousePosition) - Body.transform.position).normalized;
@@ -1266,7 +1737,10 @@ public class Stickman: MonoBehaviour
         {
             foreach(_Muscle muscle in legs)
             {
-                muscle.bone.AddForce(JumpVector, ForceMode2D.Impulse);
+                if(muscle.bone)
+                {
+                    muscle.bone.AddForce(JumpVector, ForceMode2D.Impulse);
+                }
             }
         }
     }
@@ -1478,7 +1952,7 @@ public class Stickman: MonoBehaviour
         rArmRigid.mass = 1/arm_length;
         lArmRigid.mass = 1/arm_length;
         //JumpVector = ogJumpVector;
-        Debug.Log("whatdidyoudoonthissaturaday");
+        //Debug.Log("whatdidyoudoonthissaturaday");
     }
     // if you feel like this goes too far, look at bottom where there is code
     // that makes it feel more grounded by pushing head
@@ -1520,52 +1994,78 @@ public class Stickman: MonoBehaviour
     // also add propulsion from head
     public void Fly()
     {
-        if (Direction == "Right")
+        if(!crouching)
         {
-            //if (rbLLeg)
-            //{
-                 //rbLLeg.AddForce(new Vector2(10f,5f), ForceMode2D.Impulse);
-            //}
-
-            //if (rbRLeg)
-            //{
-                //rbRLeg.AddForce(new Vector2(10f,5f), ForceMode2D.Impulse);
-            //}
-            //Invoke("StraightAni", 0f);
-            if (muscles[0].restRotation == -20)
+            if (playerDir == "right")
             {
-            
-                foreach(_Muscle muscle in legs)
+                //if (rbLLeg)
+                //{
+                     //rbLLeg.AddForce(new Vector2(10f,5f), ForceMode2D.Impulse);
+                //}
+
+                //if (rbRLeg)
+                //{
+                    //rbRLeg.AddForce(new Vector2(10f,5f), ForceMode2D.Impulse);
+                //}
+                //Invoke("StraightAni", 0f);
+                if(propelFunct.finished)
                 {
-                    muscle.bone.AddForce(direction * 100, ForceMode2D.Impulse);
-                }
-                Invoke("StraightAni", 0f);
-            }
-
-            else 
-            {
-                Invoke("Propel", 0f);
-            }
-        }
-
-        if(Direction == "Left")
-        {
-
-            if (muscles[0].restRotation == 20)
-            {
                     foreach(_Muscle muscle in legs)
                     {
-                        muscle.bone.AddForce(direction * 100, ForceMode2D.Impulse);
+                        muscle.bone.AddForce(new Vector2(240f, 190f), ForceMode2D.Impulse);
+                        floating = true;
                     }
-                Invoke("StraightAni", 0f);
+                    function funct1 = new function();
+                    proneDir = playerDir;
+                    funct1.name = "StraightAni";
+                    funct1.animations = animations;
+                    animations.Add(funct1);
+                    propelling = false;
+                }
+                else if(!propelling)
+                {
+
+                
+                    Debug.LogError("loldawg");
+                    propelFunct = new function();
+                    propelFunct.name = "Propel";
+                    propelFunct.animations = animations;
+                    animations.Add(propelFunct);
+                }
             }
 
-            else 
+            else if(playerDir == "left")
             {
-                Invoke("Propel", 0f);
-            }
+                if(propelFunct.finished)
+                {
+                    foreach(_Muscle muscle in legs)
+                    {
+                        muscle.bone.AddForce(new Vector2(-240f, 190f), ForceMode2D.Impulse);
+                        floating = true;
+                    }
+                    function funct2 = new function();
+                    proneDir = playerDir;
+                    funct2.name = "StraightAni";
+                    funct2.animations = animations;
+                    animations.Add(funct2);
+                    propelling = false;
+                }
+                    
+
+                else if(!propelling)
+                {
+
+                    propelFunct = new function();
+                    propelFunct.name = "Propel";
+                    propelFunct.animations = animations;
+                    animations.Add(propelFunct);
+                }
+            }           
         }
     }
+    //uppper body face direction of the mouse?
+    // so test ai on more complex dips like box to below dip
+    // still don't have a prone feature on control
     public void SlowDown()
     {
         Time.timeScale = 0.1f;
@@ -1583,147 +2083,288 @@ public class Stickman: MonoBehaviour
         int target = 0;
         bool swivel = false;
         int multi = 1;
-        if(((body_muscle.restRotation == 90 && Direction == "Right") || (body_muscle.restRotation == -90 && Direction == "Left")))
+        Debug.LogError("Indisbith");
+        if(!proning)
         {
-            swivel = true;
-        }
-        if(!wasCrouched || swivel)
-        {
-            if(swivel)
+            Debug.LogError("***REMOVED***ass " + wasCrouched);
+            if(((body_muscle.restRotation == 90 && playerDir == "right") || (body_muscle.restRotation == -90 && playerDir == "left")))
             {
-                interval = 0.001f;
+                swivel = true;
             }
-            else
+            if((!wasCrouched || swivel))
             {
-                interval = 0.01f;
-            }
-            if(Direction == "Left")
-            {
-                increment = 1 * multi;
-                target = 90;
-            }
-            else
-            {
-                increment = -1 * multi;
-                target = -90;
-            }
-        }
-        else
-        {
-            if(Direction == "Left")
-            {
-                increment = -1;
-                target = 0;
-            }
-            else
-            {
-                increment = 1;
-                target = 0;
-            }
-            interval = 0.01f;
-        }
-        if(body_muscle.restRotation != target)
-        {
-            body_muscle.restRotation += increment;
-            Debug.Log(crouching);
-            Invoke("CrouchAni",interval);
-        }
-        else
-        {
-            CrouchAniDone = true;
-        }
-    
-    }
-
-    public void GetUpAni()
-    {   int counter = 0;
-        if(!crouching)
-        {
-            foreach (_Muscle muscle in muscles)
-            {   
-                if(muscle.restRotation > 0)
+                //Debug.LogError("***REMOVED***");
+                animating = true;
+                if(swivel)
                 {
-                    muscle.restRotation = muscle.restRotation - 1 ;
+                    interval = 0.00001f;
                 }
-
-                else if(muscle.restRotation < 0)
-                {
-                    muscle.restRotation = muscle.restRotation + 1 ;
-                }
-
                 else
                 {
-                    counter = counter + 1;
-                }    
+                    interval = 0.0001f;
+                }
+                if(playerDir == "left")
+                {
+                    increment = 1;
+                    target = 90;
+                }
+                else
+                {
+                    increment = -1;
+                    target = -90;
+                }
+            }
+            else
+            {
+                if(playerDir == "left")
+                {
+                    increment = -1;
+                    target = 0;
+                }
+                else
+                {
+                    increment = 1;
+                    target = 0;
+                }
+                interval = 0.01f;
+            }
+            if(body_muscle.restRotation != target || head_muscle.restRotation != target)
+            {
+                if(body_muscle.restRotation != target)
+                {
+                    body_muscle.restRotation += increment;
+                }
+                if(head_muscle.restRotation != target)
+                {
+                    head_muscle.restRotation += increment;
+                }
+                
+                //RShoulderMuscle.restRotation += increment;
+                //LShoulderMuscle.restRotation += increment;
+                //Debug.LogError("target" + target);
+                Invoke("CrouchAni",interval);
+            }
+            else
+            {
+                CrouchAniDone = true;
+                animating = false;
+                animations[0].finished = true;
             }
         }
 
-            if (counter != muscles.Length )
+
+    }
+    // doesn't siwvel across, check for crouch on change direction
+
+    // legs get crossed = hard to walk
+    // otherwise seems good, but definely doesn't get real low
+
+    public void GetUpAni()
+    {   
+        int counter1 = 0;
+        int counter2 = 0;
+        Debug.LogError("***REMOVED***afato;nee");
+        resettingRot = true;
+        animations = new List<function>();
+            foreach (_Muscle muscle in muscles)
+            {   
+                if(muscle.bone.gameObject.tag != "rArm" && muscle.bone.gameObject.tag != "lArm")
+                {
+                    if(muscle.bone.gameObject.tag == "rFoot" || muscle.bone.gameObject.tag == "lFoot")
+                    {
+                        muscle.restRotation = 0;
+                        counter1++;
+                    }
+                    else if(muscle.restRotation > 0)
+                    {
+                        muscle.restRotation = muscle.restRotation - 1;
+                    }
+
+                    else if(muscle.restRotation < 0)
+                    {
+                        muscle.restRotation = muscle.restRotation + 1 ;
+                    }
+
+                    else
+                    {
+                        counter1++;
+                    }    
+                    counter2++;
+                }
+            }
+            
+            if (counter1 != counter2 )
             {
                 Invoke("GetUpAni", 0.01f);
             }
+            else
+            {
+                resettingRot = false;
+                proning = false;
+                crouching = false;
+
+            }
+        //animations[0].finished = true;
     }
 
     public void StraightAni() {
-        if (Direction == "Left")
+        int counter1 = 0;
+        int counter2 = 0;
+        animating = true;
+        proning = true;
+        if(animations.Count > 0)
         {
+                Debug.LogError("neek" +animations[0].name + animations[0].finished);
+            if(animations[0].name == "StraightAni")
+            {
+                if (proneDir == "left")
+                {
 
-        
-            foreach(_Muscle muscle in muscles)
-            {
-                    muscle.restRotation = muscle.restRotation + 1;
+                
+                    foreach(_Muscle muscle in muscles)
+                    {
+                            if(muscle.bone.gameObject.tag != "rArm" && muscle.bone.gameObject.tag != "lArm")
+                            {
+                                if(Mathf.Round(muscle.restRotation) == 90)
+                                {
+                                    counter1++;
+                                }
+                                else
+                                {
+                                    muscle.restRotation += 1;
+                                }
+                                counter2++;
+                            }
+                    }
+                    if (counter1 != counter2)
+                    {
+                        Invoke("StraightAni", 0.01f);
+                    }
+                    else
+                    {
+                        animations[0].finished = true;
+                    }
+                                
+                }
+                else
+                {
+                    foreach(_Muscle muscle in muscles)
+                    {
+                            if(muscle.bone.gameObject.tag != "rArm" && muscle.bone.gameObject.tag != "lArm" )
+                            {
+                                if(Mathf.Round(muscle.restRotation) == -90)
+                                {
+                                    counter1++;
+                                }
+                                else
+                                {
+                                    muscle.restRotation -= 1;
+                                }
+                                counter2++;
+                            }
+                    }
+                    if (counter1 != counter2)
+                    {
+                        Invoke("StraightAni", 0.01f);
+                    }
+                    else
+                    {
+                        animations[0].finished = true;
+                    }
+                }
             }
-            if (muscles[0].restRotation != 90)
-            {
-                Invoke("StraightAni", 0.02f);
-            }
-        }
-        else
-        {
-            foreach(_Muscle muscle in muscles)
-            {
-                    muscle.restRotation = muscle.restRotation - 1;
-            }
-            if (muscles[0].restRotation != -90)
-            {
-                Invoke("StraightAni", 0.01f);
-            }
+            Debug.LogError("weidiit");
+            //animations[0].finished = true;
         }
     }
 
     public void Propel()
     {
-        if(Direction == "Right")
+        int counter2 = 0;
+        int counter1 = 0;
+        Debug.LogError("propeller");
+        propelling = true;
+        if(playerDir == "right")
         {
+            Debug.LogError("yes");
 
             
             foreach(_Muscle muscle in muscles)
+            {
+                // consider this for leaning the body
+                // the body violently snaps toward the object when pronin and trying to stand, mayebl less force on muscles or sum, as it's not from ani as all muscles already at 0
+                // also could try re-imp the collider2
+                //body_muscle.bone.AddForce(new Vector2(100f,0f), ForceMode2D.Impulse);
+                Debug.LogError("ye");
+                if(muscle.bone.gameObject.tag != "rArm" && muscle.bone.gameObject.tag != "lArm")
                 {
-                        muscle.restRotation = muscle.restRotation - 1;
+
+                    if(muscle.restRotation == -20)
+                    {
+                        counter1++;
+                    }
+                    else
+                    {
+                        if(muscle.restRotation > -20)
+                        {
+                            muscle.restRotation -= 1;
+                        }
+                        else
+                        {
+                            muscle.restRotation += 1;
+                        }
+                    }
+                    counter2++;
                 }
-                if (muscles[0].restRotation != -20)
-                {
-                    Invoke("Propel", 0.01f);
-                }
-                else
-                {
-                    Fly();
-                }
+            }
+            if (counter1 != counter2)
+            {
+                Invoke("Propel", 0.0000000001f);
+            }
+
+            else 
+            {
+                 Debug.LogError("gonkms");
+                animations[0].finished = true;
+                //propelling = false;
+                Fly();
+            }
         }
 
         else
         {
+            //Debug.LogError("y");
             foreach(_Muscle muscle in muscles)
                 {
-                        muscle.restRotation = muscle.restRotation + 1;
+                    if(muscle.bone.gameObject.tag != "rArm" && muscle.bone.gameObject.tag != "lArm")
+                    {
+                        if(muscle.restRotation == 20)
+                        {
+                            counter1++;
+                        }
+                        else
+                        {
+                            if(muscle.restRotation > 20)
+                            {
+                                muscle.restRotation -= 1;
+                            }
+                            else
+                            {
+                                muscle.restRotation += 1;
+                            }
+                        }
+                        counter2++;
+                    }
                 }
-                if (muscles[0].restRotation != 20)
+                if (counter1 != counter2)
                 {
-                    Invoke("Propel", 0.01f);
+                    Invoke("Propel", 0.0001f);
                 }
 
                 else 
                 {
+                    //propelling = false;
+                    animations[0].finished = true;
                     Fly();
                 }
         }
@@ -1732,6 +2373,77 @@ public class Stickman: MonoBehaviour
     public void Recoil()
     {
     }
+    public void BodyToMouse()
+    {
+        if(animations.Count > 0)
+        {
+            if(animations[0].name == "BodyToMouse")
+            {
+                if(body_muscle.restRotation < -angle)
+                {
+                    body_muscle.restRotation += 1;
+                }
+                else if(body_muscle.restRotation > -angle)
+                {
+                    body_muscle.restRotation -= 1;
+                }
+                if(body_muscle.restRotation != -angle)
+                {
+                    Invoke("BodyToMouse", 0.1f);
+                }
+                else
+                {
+                    animations[0].finished = true;
+                }
+            }
+        }
+    }
+public void aim()
+{
+        int counter1 = 0;
+        int counter2 = 0;
+        if(animations.Count > 0)
+        {
+            if(animations[0].name == "aim")
+            {
+                foreach(_Muscle muscle in muscles)
+                {
+                    if(muscle.bone.gameObject.tag == "rArm")
+                    {
+                        //if(holdingL)
+                       // {
+                           // muscle.bone.AddForce(direction / 5, ForceMode2D.Impulse);
+                       // }
+                        if(muscle.restRotation == angle)
+                        {
+                            counter1++;
+                        }
+                        else
+                        {
+                            if(muscle.restRotation > -angle + 180)
+                            {
+                                muscle.restRotation -= 1;
+                            }
+                            else
+                            {
+                                muscle.restRotation += 1;
+                            }
+                        }
+                        counter2++;
+                    }
+                }
+                if(counter1 != counter2)
+                {
+                    Invoke("aim", 0.1f);
+                }
+                else
+                {
+                    animations[0].finished = true;
+                }
+            }
+        }
+    }
+
 }
 
 [System.Serializable]
@@ -1756,7 +2468,7 @@ public class _Muscle
                     //Debug.Log(bone.rotation);
                     //Debug.Log(restRotation);
                     //Debug.Log(force);
-                    restRotation = -stick.rLegRestRotation ;
+                    //restRotation = -stick.rLegRestRotation ;
 
                 }
                 if(bone.gameObject.tag == "LrLeg")
@@ -1770,7 +2482,7 @@ public class _Muscle
                 if(bone.gameObject.tag == "lLeg" || bone.gameObject.tag == "lFoot" || bone.gameObject.tag == "Body")
                 {
                     //Debug.Log("gobaby");
-                    restRotation = -stick.lLegRestRotation;
+                    //restRotation = -stick.lLegRestRotation;
                     if(bone.gameObject.tag == "Body")
                     {
                         //restRotation = -stick.lLegRestRotation - 90;
@@ -1798,4 +2510,13 @@ public class _Muscle
         //rbRLeg.AddForce(new Vector2(10f,5f), ForceMode2D.Impulse);
         //rbHead.AddForce(new Vector2(-20f,0f), ForceMode2D.Impulse);
         //}
+}
+
+public class function
+{
+    public string name;
+    public bool finished = false;
+    public bool started = false;
+    public List<function> animations;
+    public bool notPriority;
 }
