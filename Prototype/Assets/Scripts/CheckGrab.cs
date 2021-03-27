@@ -171,9 +171,10 @@ public class CheckGrab : MonoBehaviour {
                     //         }
                             if(muscle.bone.gameObject.tag == "lArm" && !Stick.NowHoldingL)
                             {
-                                muscle.bone.mass = 0.01f;
+                                muscle.bone.mass = 0.1f;
                                 muscle.bone.drag = 0f;
                             }
+                            // should prob try do the above
                     //         else if(muscle.bone.gameObject.tag == "rFoot" || muscle.bone.gameObject.tag == "lFoot")
                     //         {
                     //             muscle.bone.mass = deltafoot_mass * (Stick.foot_mass);
@@ -221,7 +222,7 @@ public class CheckGrab : MonoBehaviour {
                         //}
                         if(muscle.bone.gameObject.tag == "rArm" && !Stick.NowHoldingR)
                         {
-                            muscle.bone.mass = 0.01f;
+                            muscle.bone.mass = 0.1f;
                             muscle.bone.drag = 0f;
                         }
                     }

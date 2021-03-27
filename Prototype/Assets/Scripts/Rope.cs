@@ -133,6 +133,14 @@ public class Rope : MonoBehaviour {
                     if(link.tag == "rFoot" || link.tag == "lFoot")
                     {
                         body.mass = stick.foot_mass;
+                        if(link.tag == "rFoot")
+                        {
+                            stick.rFootBody = body;
+                        }
+                        else
+                        {
+                            stick.lFootBody = body;
+                        }
 
                     }
                     else
@@ -152,6 +160,8 @@ public class Rope : MonoBehaviour {
                     // also lot of fine tunign, grapple gun and crouch?
                 }
                 muscle.bone = body;
+                muscle_holder refer = link.AddComponent(typeof(muscle_holder)) as muscle_holder;
+                refer.muscle = muscle;
                 if(link.tag == "rFoot")
                 {
                     stick.muscleR = muscle ;

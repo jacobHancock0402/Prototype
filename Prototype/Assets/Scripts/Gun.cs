@@ -89,7 +89,7 @@ public class Gun : MonoBehaviour {
                 if (Input.GetMouseButtonDown(0) && Shoot)
                 {
                     Shoot.shoot = true;
-                    Shoot.Fire(angle, direction);
+                    Shoot.Fire(angle, direction, true);
                 }
 
             }
@@ -106,7 +106,7 @@ public class Gun : MonoBehaviour {
                 if(Shoot)
                 {
                     Shoot.shoot = true;
-                    Shoot.Fire(angle,direction);
+                    Shoot.Fire(angle,direction, true);
                 }
 
                 // check if melee weapon
