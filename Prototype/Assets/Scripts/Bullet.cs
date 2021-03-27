@@ -2,19 +2,40 @@ using UnityEngine;
 using System.Collections;
 using System;
 using UnityEngine.Networking;
+//using UnityEngine.ParticleSystemModule;
 using System.IO;
 
 public class Bullet : MonoBehaviour {
     public float time = 0;
     public Rigidbody2D thisRigid;
+    public Collider2D thisCollider;
     public Stickman stick;
+    public GameObject BloodParticle;
+    public GameObject BloodCloud;
+    public ControlBloodEmission control;
+    public Vector3 dir;
+    public bool hasBloodedThisPlayer;
+    public int idIndex = 0;
+    public Transform playerBody;
+    public ScreenFlashEffect screenF;
+    public float hitMultiplier = 0.4f;
+    public BulletManager manager;
+    public int stickId;
+    public int[] ids; 
 
 	void Start() {
+        //particle = transform.GetChild(transform.childCount-1).gameObject;
+        //control = particle.GetComponent<ControlFlashEmission>();
+        ids = new int[100];
+        //playerBody = stick.Body.transform;
         time = Time.time;
+        stickId = stick.gameObject.GetInstanceID();
 	}
 
     void Update()
     {   
+        thisRigid.mass = 10f;
+        //thisRigid.collisionDetectionMode = collisonDetectionMode.Continuous;
         if (gameObject.tag == "Bullet")
         { 
             if (Time.time - time > 10)
@@ -31,7 +52,195 @@ public class Bullet : MonoBehaviour {
 
     void OnCollisionEnter2D(Collision2D coll)
     {
-        if (coll.gameObject.tag != "Gun" && coll.gameObject.tag != "rArm")
+        // no idea why this doesn't work
+        // only sometimes it'll recognize the objects are the same
+        // even when it does, it doesn't correctly set gravity scale or remove all the correct objects
+        //Debug.LogError("magibra" + thisRigid.velocity.magnitude);
+        int instanceId = coll.transform.root.gameObject.GetInstanceID();
+        if(instanceId == stickId)
+        {
+            Physics2D.IgnoreCollision(thisCollider, coll.collider);
+        }
+        else if((coll.gameObject.tag == "lArm" || coll.gameObject.tag == "rArm" || coll.gameObject.tag == "rLeg" || coll.gameObject.tag == "lLeg" || coll.gameObject.tag == "lFoot" || coll.gameObject.tag == "rFoot") && thisRigid.velocity.magnitude > 8f)
+        {
+            bool removeRest = false;
+            Vector3 velocity = thisRigid.velocity;
+            int i = 0;
+            string tag = coll.gameObject.tag;
+            int counter1 = 0;
+            foreach(int id in ids)
+            {
+                if(id == instanceId)
+                {
+                    hasBloodedThisPlayer = true;
+                    break;
+                }
+                counter1++;
+                if(counter1 == ids.Length)
+                {
+                    hasBloodedThisPlayer = false;
+                    break;
+                }
+            }
+            if(!hasBloodedThisPlayer)
+            {
+                drawBlood(coll, instanceId);
+            }
+            // so yeah the blood ***REMOVED*** works now
+            // doesn't look perfect, but does the job
+            // look at gunplay's blood, it's like one big thing then fades into smaller ones, like 2 anis
+            // next maybe try putting blood on walls, but no idea how this is done
+            // the bullet masses, forces and whatever also quite weird rn, so prob look at that
+            // i feel like sound would also bring it to life, like flesh sound on hit, and general rework of the sys
+            // then maybe like a groan or something
+            // also remember health and ***REMOVED***, cause rn he just dies on hit
+            //Debug.LogError("armref" + coll.gameObject.GetInstanceID());
+            // still no work, no know why
+            // no rmeove rest;
+            //Debug.LogError("chilCount" + stick.lArm.transform.childCount);
+            int counter = 0;
+            GameObject limb = new GameObject();
+            if(coll.gameObject.transform.parent != null)
+            {
+                Stickman hitStick = coll.gameObject.transform.root.gameObject.GetComponent<Stickman>();
+                hitStick.health -= (thisRigid.velocity.magnitude * hitMultiplier );
+                if(hitStick.health <= 0 && !hitStick.dead)
+                {
+                    hitStick.dead = true;
+                    AudioSource sawsy = stick.dyingAudio[UnityEngine.Random.Range(0, stick.dyingAudio.Length - 1)];
+                    sawsy.PlayOneShot(sawsy.clip);
+                    if(!screenF.recurse)
+                    {
+                        screenF.Activate();
+                    }
+                }
+                //hitStick.dead = true;
+                if(tag == "lArm")
+                {
+                    limb = hitStick.lArm;
+                }
+                if(tag == "rArm")
+                {
+                    limb = hitStick.rArm;
+                }
+                if(tag == "rLeg")
+                {
+                    limb = hitStick.rLeg;
+                }
+                if(tag == "lLeg")
+                {
+                    limb = hitStick.lLeg;
+                }
+                int length = limb.transform.childCount;
+                int limbIndex = coll.gameObject.transform.GetSiblingIndex();
+                coll.gameObject.transform.parent = null;
+                coll.gameObject.GetComponent<Rigidbody2D>().gravityScale = 1f;
+                Destroy(coll.gameObject.GetComponent<muscle_holder>());
+                // no idea why this isn't working, just you can't set gravity scale of block that's hit to 1
+                // like even doing manuallly in gui does nothing
+                Destroy(coll.gameObject.GetComponent<HingeJoint2D>());
+                // looks weird, might just be because of no force though
+                while(i < length)
+                {
+                    GameObject objec = limb.transform.GetChild(i).gameObject;
+                    //Debug.LogError("noderef" + objec.GetInstanceID());
+                    if(i == limbIndex && !removeRest && i != length - 1)//objec.GetInstanceID() == coll.gameObject.GetInstanceID())
+                    {
+                        removeRest = true;
+                        Debug.LogError("swaggyp" + i);
+                        //i++;
+                        //continue;
+                    }
+                    if(removeRest)
+                    {
+                        // if(counter == 0)
+                        // {
+                            
+                        // }
+                        counter++;
+                        //objec.GetComponent<muscle_holder>().muscle.bone = null;
+                        Destroy(objec.GetComponent<muscle_holder>());
+                        objec.transform.parent = null;
+                        Rigidbody2D body = objec.GetComponent<Rigidbody2D>();
+                        body.gravityScale = 1f;
+                        body.AddForce(velocity * (0.5f * body.mass), ForceMode2D.Impulse);
+                        //Destroy(objec.GetComponent<HingeJoint2D>());
+                    }
+                    else
+                    {
+                        i++;
+                    }
+                    Debug.LogError("myivalue" + i);
+                    length = limb.transform.childCount;
+                }
+                Debug.LogError("numerino" + counter);
+            }
+            else
+            {
+                Destroy(coll.gameObject.GetComponent<HingeJoint2D>());
+            }
+        }
+        else if(coll.gameObject.tag == "Body" || coll.gameObject.tag == "Head"  && thisRigid.velocity.magnitude > 8f)
+        {
+            Stickman hitStick = coll.gameObject.transform.root.gameObject.GetComponent<Stickman>();
+            int counter1 = 0;
+            foreach(int id in ids)
+            {
+                if(id == instanceId)
+                {
+                    hasBloodedThisPlayer = true;
+                    break;
+                }
+                counter1++;
+                if(counter1 == ids.Length)
+                {
+                    hasBloodedThisPlayer = false;
+                    break;
+                }
+            }
+            // seemingly works when upright, not otherwise,
+            // too much force on it now, decrease the lifetime or sum so goes less further out
+            // also delete these object as many in hiearychy after instan
+            if(!hasBloodedThisPlayer)
+            {
+                drawBlood(coll, instanceId);
+            }
+            Rigidbody2D body = coll.gameObject.GetComponent<Rigidbody2D>();
+            body.AddForce(thisRigid.velocity * (0.5f * body.mass * 2), ForceMode2D.Impulse);
+            if(coll.gameObject.tag == "Head")
+            {
+                if(!screenF.recurse && !hitStick.dead)
+                {
+                    screenF.Activate();
+                }
+                // uhh seemingly doesn't work, might have messed up other stuff as well
+                // don't forget the shooting at 1700 in stickman, left a little note there or something
+                AudioSource sawsy = stick.headShotAudio[UnityEngine.Random.Range(0, stick.headShotAudio.Length - 1)];
+                sawsy.PlayOneShot(sawsy.clip);
+                hitStick.dead = true;
+                HingeJoint2D joint = coll.gameObject.GetComponent<HingeJoint2D>();
+                Destroy(joint);
+                if(UnityEngine.Random.Range(0, 3) == 0)
+                {
+                    Destroy(coll.gameObject);
+                }
+            }
+            else
+            {
+                hitStick.health -= (thisRigid.velocity.magnitude * hitMultiplier * 3);
+                if(hitStick.health <= 0 && !hitStick.dead)
+                {
+                    AudioSource sawsy = stick.dyingAudio[UnityEngine.Random.Range(0, stick.dyingAudio.Length - 1)];
+                    sawsy.PlayOneShot(sawsy.clip);
+                    hitStick.dead = true;
+                    if(!screenF.recurse)
+                    {
+                        screenF.Activate();
+                    }
+                }
+            }
+        }
+        else if(coll.gameObject.tag != "Gun" && manager.canPlay)
         {
             //Destroy(gameObject);
         
@@ -75,17 +284,20 @@ public class Bullet : MonoBehaviour {
                                 
                     }
                     //stick.Start();
+                    // these sounds are ***REMOVED***ing ***REMOVED*** so i turned them off
                     if(stick.Audios.ContainsKey(coll.gameObject.tag))
                     {
                         int key_value = stick.Audio_Map[fileName];
                         AudioSource[] audi = stick.Audios[coll.gameObject.tag];
-                        audi[key_value].PlayOneShot(audi[key_value].clip);
+                        //audi[key_value].PlayOneShot(audi[key_value].clip);
+                        manager.lastPlayTime = Time.time;
                     }
                     else
                     {
                         int key_value = stick.Audio_Map["defaultBulletHit"];
                         AudioSource[] audi = stick.Audios["Metallic"];
-                        audi[key_value].PlayOneShot(audi[key_value].clip);
+                        //audi[key_value].PlayOneShot(audi[key_value].clip);
+                        manager.lastPlayTime = Time.time;
                     }
                             //Debug.Log("***REMOVED***my***REMOVED***");
                             //Debug.Log(file.Name);
@@ -158,6 +370,36 @@ public class Bullet : MonoBehaviour {
         //AudioClip clip = www.GetAudioClip(soundPath, AudioType.WAV);
             source.clip = DownloadHandlerAudioClip.GetContent(www);
        }
+    }
+    public void drawBlood(Collision2D col, int id)
+    {
+        GameObject cloneParticle = Instantiate(BloodParticle) as GameObject;
+        GameObject cloneCloud = Instantiate(BloodCloud) as GameObject;
+        ContactPoint2D contact = col.GetContact(0);
+        cloneParticle.transform.position = contact.point;
+        cloneCloud.transform.position = contact.point;
+        ParticleSystem cloneSystem = cloneParticle.GetComponent<ParticleSystem>();
+        UnityEngine.ParticleSystem.VelocityOverLifetimeModule module = cloneSystem.velocityOverLifetime;
+        module.x = contact.normal.x;
+        module.y = contact.normal.y;
+        module.speedModifier = 0.1f;
+        float angle = Mathf.Atan2(dir.x, dir.y) * Mathf.Rad2Deg;
+        Vector3 rot = new Vector3(0f,0f, angle);
+        UnityEngine.ParticleSystem.ShapeModule cloneShape = cloneSystem.shape;
+        cloneShape.rotation = rot;
+        //cloneSystem.shape = cloneShape;
+        //module.yMultiplier = UnityEngine.Random.Range(0, 100);
+        //module.xMultiplier = UnityEngine.Random.Range(0, 100);
+        // if(playerBody.position.x < col.transform.position.x)
+        // {
+        //     //module.xMultiplier = -module.xMultiplier;
+        // }
+        ControlBloodEmission cont1 = cloneParticle.GetComponent<ControlBloodEmission>();
+        ControlBloodEmission cont2 = cloneCloud.GetComponent<ControlBloodEmission>();
+        cont1.ActivateEmission();
+        //cont2.ActivateEmission();
+        ids[idIndex] = id;
+        idIndex++;
     }
     }
         

@@ -75,21 +75,21 @@ public class Grid : MonoBehaviour {
                         }
                         if (grid[xplus1,y1].Solid)
                         {
-                            if(grid[xplus1,y1].Object.tag == "Incline")
+                            if(grid[xplus1,y1].Object.layer == 11)
                             {
                                 grid[x1,y1].Incline = true;
                             }
                         }
                         if(grid[x1,yminus1].Solid)
                         {
-                            if(grid[x1,yminus1].Object.tag == "Incline")
+                            if(grid[x1,yminus1].Object.layer == 11)
                             {
                                 grid[x1,y1].Incline = true;
                             }
                         }
                         if(grid[xminus1,y1].Solid)
                         {
-                            if(grid[xminus1,y1].Object.tag == "Incline")
+                            if(grid[xminus1,y1].Object.layer == 11)
                             {
                                 grid[x1,y1].Incline = true;
                             }
@@ -163,8 +163,8 @@ public class Grid : MonoBehaviour {
             }
 
             startNode.gCost = 0;
-           startNode.hCost = CalcHCost(startNode, endNode);
-           startNode.CalcFCost();
+            startNode.hCost = CalcHCost(startNode, endNode);
+            startNode.CalcFCost();
             //Node currentNode = startNode;
             while(openList.Count > 0)
             {
@@ -378,56 +378,56 @@ public class Grid : MonoBehaviour {
     void Update()
     {
     }
-    void OnDrawGizmos()
-    {
-        //Gizmos.DrawWireCube(transform.position, new Vector3(gridSizeX, 1, gridSizeY))
-        // {
-            if(grid != null)
-            {
-        //     Node PlayerNode = GetCurrentNode(Player.position);
-            //foreach(Node n in grid)
-             {
-                 if(path != null)
+//    
+void OnDrawGizmos()
+     {
+//         //Gizmos.DrawWireCube(transform.position, new Vector3(gridSizeX, 1, gridSizeY))
+//         {
+//             if(grid != null)
+//             {
+//         Node PlayerNode = GetCurrentNode(Player.position);
+//             foreach(Node n in grid)
+//              {
+                  if(path != null)
         {
-           //foreach(Node node in path)
-          //{
-              // Gizmos.color = Color.cyan;
-               //Gizmos.DrawCube(node.position, Vector3.one * (nodeRadius * 2));
-            //}
+           foreach(Node node in path)
+          {
+              Gizmos.color = Color.cyan;
+               Gizmos.DrawCube(node.position, Vector3.one * (nodeRadius * 2));
+            }
         }
-      //         if(n.x == PlayerNode.x && n.y == PlayerNode.y)
-        //         {
-        //             Gizmos.color = Color.cyan;
-        //         }
-                //if(compareNodeToList(n, NeighbourLs))
-               // {
-                    //Gizmos.color = Color.yellow;
-                //}
-               // else if(n.WalkAble && !n.onPath )
-              //  {
-                    //Gizmos.color = Color.green;
-              //  }
-                // else if(!n.onPath)
-              //  {
-                //     //Gizmos.color = Color.red;
-               // }
-        //        // Gizmos.DrawSphere(n.position, nodeRadius);
-                 //Gizmos.DrawCube(n.position, Vector3.one * (nodeRadius * 2));
-            // }
-           //}
-        //         //Debug.LogError(n.WalkAble);
-        //     }
-        if(path != null)
-       {
-          // foreach(Node n in path)
-         // {
-               //Gizmos.color = Color.cyan;
-               //Gizmos.DrawCube(n.position, Vector3.one * (nodeRadius * 2));
-            //}
-        }
+//                if(n.x == PlayerNode.x && n.y == PlayerNode.y)
+//                 {
+//                     //Gizmos.color = Color.cyan;
+//                 }
+//                //  if(//compareNodeToList(n, NeighbourLs))
+//                // {
+//                //      Gizmos.color = Color.yellow;
+//                //  }
+//                else if(n.WalkAble && !n.onPath && n.Incline )
+//                {
+//                     Gizmos.color = Color.green;
+//                }
+//                 else if(!n.onPath)
+//                {
+//                     Gizmos.color = Color.red;
+//                }
+//                Gizmos.DrawSphere(n.position, nodeRadius);
+//                  Gizmos.DrawCube(n.position, Vector3.one * (nodeRadius * 2));
+//             }
+//            }
+//                 //Debug.LogError(n.WalkAble);
+//             }
+//        //  if(path != null)
+//        // {
+//        //    // foreach(Node n in path)
+//        //   // {
+//        //         //Gizmos.color = Color.cyan;
+//        //         //Gizmos.DrawCube(n.position, Vector3.one * (nodeRadius * 2));
+//        //      //}
+//        //  }
 }
 }
-}}
 public class Node : MonoBehaviour{
     public bool WalkAble;
     public bool ClimbAble;

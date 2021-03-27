@@ -6,6 +6,7 @@ public class Collided : MonoBehaviour {
     public bool HasCollidedWalk;
     public Collided otherleg;
     public AudioSource Audio;
+    public float calledAnAngle = 0f;
     public bool LastHasCollidedWalk;
     // this is fine now, don't trip each other up
     // holding and all arm ***REMOVED*** is fine bar climbing
@@ -27,12 +28,36 @@ public class Collided : MonoBehaviour {
         }
         else
         {
+            if(HasCollidedWalk)
+            {
+                if(stick.oneLegHasCollided)
+                {
+                    stick.LastFrameHasCollidedWalk = true;
+                }
+                else
+                {
+                    stick.LastFrameHasCollidedWalk = false;
+                }
+                stick.oneLegHasCollided = true;
+            }
+            else if(!HasCollidedWalk && !otherleg.HasCollidedWalk)
+            {
+                stick.oneLegHasCollided = false;
+            }
             if(HasCollidedWalk && !LastHasCollidedWalk)
             {
                 Audio.PlayOneShot(Audio.clip);
             }
             if (HasCollidedWalk && otherleg.HasCollidedWalk)
             {
+                if(stick.HasCollidedWalk)
+                {
+                    stick.LastFrameHasCollidedWalk = true;
+                }
+                else
+                {
+                    stick.LastFrameHasCollidedWalk = false;
+                }
                 stick.HasCollidedWalk = true;
             }
             else
@@ -49,6 +74,14 @@ public class Collided : MonoBehaviour {
             }
             if (HasCollidedJump && otherleg.HasCollidedJump)
             {
+                if(stick.HasCollidedWalk)
+                {
+                    stick.LastFrameHasCollidedWalk = true;
+                }
+                else
+                {
+                    stick.LastFrameHasCollidedWalk = false;
+                }
                 stick.HasCollidedJump = true;
                 stick.HasCollidedWalk = true;
             }
@@ -63,6 +96,8 @@ public class Collided : MonoBehaviour {
     void OnCollisionEnter2D (Collision2D coll) {
         if(otherleg != null)
         {
+            Vector3 direct = coll.GetContact(0).normal;
+            calledAnAngle = Mathf.Atan2(direct.x, direct.y) * Mathf.Rad2Deg; 
             if(coll.gameObject.tag == "World" || coll.gameObject.tag == "Metallic" || coll.gameObject.tag == "Incline")
             {
                 stick.flying = false;
@@ -72,10 +107,14 @@ public class Collided : MonoBehaviour {
                     float angle = Mathf.Atan2(direction.x, direction.y) * Mathf.Rad2Deg; 
                     if(Mathf.Abs(angle) < 80)
                     {
+                        if(Mathf.Abs(angle) < 60)
+                        {
+                            HasCollidedWalk = true;
+                        }
                         if(!stick.crouching && !stick.proning)
                         {
-                            //stick.muscleR.restRotation = Mathf.Round(-angle);
-                            //stick.body_muscle.restRotation = Mathf.Round(-angle);
+                            stick.muscleR.restRotation = Mathf.Round(-angle);
+                            stick.body_muscle.restRotation = Mathf.Round(-angle);
                         }
                     }
                      //stick.WalkRightVector = -Vector2.Perpendicular(direction) * 1000;
@@ -87,35 +126,43 @@ public class Collided : MonoBehaviour {
                     float angle = Mathf.Atan2(direction.x, direction.y) * Mathf.Rad2Deg; 
                     if(Mathf.Abs(angle) < 80)
                     {
+                        if(Mathf.Abs(angle) < 60)
+                        {
+                            HasCollidedWalk = true;
+                        }
                         
                         if(!stick.crouching && !stick.proning)
                         {
-                            //stick.muscleL.restRotation = Mathf.Round(-angle);
-                            //stick.body_muscle.restRotation = Mathf.Round(-angle);
+                            stick.muscleL.restRotation = Mathf.Round(-angle);
+                            stick.body_muscle.restRotation = Mathf.Round(-angle);
                         }
                     }
                     //stick.WalkRightVector = -Vector2.Perpendicular(direction) * 1000;
                     //stick.WalkLeftVector = Vector2.Perpendicular(direction) * 1000;
                 }
                 HasCollidedJump = true;
-                HasCollidedWalk = true;
                 //Audio.Play(0);
             }
             else if(coll.gameObject.tag == otherleg.gameObject.tag)
             {
-                HasCollidedWalk = true;
+                //HasCollidedWalk = true;
             }
         }
     }
     void OnCollisionStay2d (Collision2D coll) {
         if(coll.gameObject.tag == "World" || coll.gameObject.tag == "Metallic" || coll.gameObject.tag == "Incline")
         {
+            Vector3 direction = coll.GetContact(0).normal;
+            float angle = Mathf.Atan2(direction.x, direction.y) * Mathf.Rad2Deg;
+            if(angle < 60)
+            {
+                HasCollidedWalk = true;
+            } 
             HasCollidedJump = true;
-            HasCollidedWalk = true;
         }
         else if(coll.gameObject.tag == otherleg.gameObject.tag)
         {
-            HasCollidedWalk = true;
+            //HasCollidedWalk = true;
         }
     }
     void OnCollisionExit2D(Collision2D coll)

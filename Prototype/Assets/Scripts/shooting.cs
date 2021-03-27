@@ -15,22 +15,32 @@ public Vector3 NewestChild;
 public Rigidbody2D NewestBody;
 public bool grabbed;
 public Stickman stick;
+public StressReceiver stress;
+public float shakeStress;
 public GameObject lArm;
 public GameObject rArm;
 public GameObject arm;
 public GameObject body;
 public GameObject hand;
-public GameObject particle;
-public ControlFlashEmission control;
+public GameObject bloodParticleObj;
+public GameObject flashParticleObj;
+public GameObject bloodCloudObj;
+public ControlFlashEmission flashControl;
 public AudioSource source;
 public SpriteRenderer Sprite;
+public ControlBloodEmission bloodControl;
+public CameraShake shake;
+public ScreenFlashEffect screenF;
 
 void Start()
 {
     source = GetComponent<AudioSource>();
     Sprite = GetComponent<SpriteRenderer>();
-    particle = transform.GetChild(transform.childCount-1).gameObject;
-    control = particle.GetComponent<ControlFlashEmission>();
+    flashParticleObj = transform.GetChild(transform.childCount-3).gameObject;
+    bloodCloudObj = transform.GetChild(transform.childCount-2).gameObject;
+    bloodParticleObj = transform.GetChild(transform.childCount-1).gameObject;
+    flashControl = flashParticleObj.GetComponent<ControlFlashEmission>();
+    bloodControl = bloodParticleObj.GetComponent<ControlBloodEmission>();
     stick = gameObject.transform.root.GetComponent<Stickman>();
     rArm = stick.rArm;
     lArm = stick.lArm;
@@ -57,9 +67,9 @@ void Update()
     {
         grabbed = false;
     }
-    if(grabbed)
+    if(grabbed && !stick.dead)
     {
-        Vector3 direction = (Camera.main.ScreenToWorldPoint(Input.mousePosition) - gameObject.transform.position).normalized;
+        Vector3 direction = (Camera.main.ScreenToWorldPoint(Input.mousePosition));
         float angle = Mathf.Atan2(direction.x, direction.y) * Mathf.Rad2Deg;
         //gameObject.transform.rotation = Quaternion.Euler(0.0f, 0.0f, -angle + 90);
         if (Sprite)
@@ -101,15 +111,22 @@ void Update()
         }
         if(Input.GetMouseButtonDown(0))
         {
-            Fire(angle,direction);
+            Fire(angle,direction, true);
         }
     }
     wasGrabbed = grabbed;
 }
 
-public void Fire(float angle, Vector3 direct)
+public void Fire(float angle, Vector3 endPoint, bool player)
     {
-        Debug.Log(gameObject.layer);
+       // Debug.Log(gameObject.layer);
+        Debug.LogError("ohblockedbyjames");
+        Vector3 direct = endPoint - gameObject.transform.position;
+        //StartCoroutine(shake.Shake());
+        if(player)
+        {
+            stress.InduceStress(shakeStress);
+        }
         // no idea why every layer is seen as 9
         // as if i'm setting somewhere else
         if (gameObject.layer == 9)
@@ -264,6 +281,7 @@ public void Fire(float angle, Vector3 direct)
 }
 else
 {
+    //Debug.LogError("big***REMOVED***yonmyblicky");
         // gunplay is very smooth when fps is ok
         // everything more stable now
         // actual right directiion
@@ -292,11 +310,19 @@ else
            // bouncy.bounceCombine = PhysicsMaterialCombine.Average;
             //b.GetComponent<CapsuleCollider2D>().sharedMaterial = bouncy;
             script.thisRigid = body;
+            script.screenF = screenF;
+            flashControl.ActivateEmission();
+            script.control = bloodControl;
+            script.BloodParticle = bloodParticleObj;
+            script.BloodCloud = bloodCloudObj;
+            source.PlayOneShot(source.clip);
+            hand.GetComponent<Rigidbody2D>().AddForce(new Vector2(0f,2f), ForceMode2D.Impulse);
             body.mass = 0.1f;
             body.collisionDetectionMode = CollisionDetectionMode2D.Continuous;
             body.interpolation = RigidbodyInterpolation2D.Interpolate;
             b.transform.position = gameObject.transform.GetChild(0).position;
             script.stick = stick;
+            script.dir = direct;
             if(A == false)
             {
                 b.transform.rotation = Quaternion.Euler(0.0f, 0.0f, -bulletAngle);
@@ -307,9 +333,6 @@ else
             }
             body.velocity = direct * BulletSpeed;
         }
-        control.ActivateEmission();
-        source.PlayOneShot(source.clip);
-        hand.GetComponent<Rigidbody2D>().AddForce(new Vector2(0f,2f), ForceMode2D.Impulse);
         //control.startTim = 1000f;
         
         }
