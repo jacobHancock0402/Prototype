@@ -20,7 +20,10 @@ public class Bullet : MonoBehaviour {
     public ScreenFlashEffect screenF;
     public float hitMultiplier = 0.4f;
     public BulletManager manager;
+    public bool prefab = false;
     public int stickId;
+    public bool active = true;
+    public int BulletSpeed;
     public int[] ids; 
 
 	void Start() {
@@ -29,6 +32,7 @@ public class Bullet : MonoBehaviour {
         ids = new int[100];
         //playerBody = stick.Body.transform;
         time = Time.time;
+        //active = true;
         stickId = stick.gameObject.GetInstanceID();
 	}
 
@@ -36,7 +40,7 @@ public class Bullet : MonoBehaviour {
     {   
         thisRigid.mass = 10f;
         //thisRigid.collisionDetectionMode = collisonDetectionMode.Continuous;
-        if (gameObject.tag == "Bullet")
+        if (gameObject.tag == "Bullet" && !prefab)
         { 
             if (Time.time - time > 10)
             {
@@ -56,13 +60,16 @@ public class Bullet : MonoBehaviour {
         // only sometimes it'll recognize the objects are the same
         // even when it does, it doesn't correctly set gravity scale or remove all the correct objects
         //Debug.LogError("magibra" + thisRigid.velocity.magnitude);
+        //Debug.LogError("iwantmoroutoflifethanthis" + active);
         int instanceId = coll.transform.root.gameObject.GetInstanceID();
+        Stickman hitStick = coll.transform.root.gameObject.GetComponent<Stickman>();
         if(instanceId == stickId)
         {
             Physics2D.IgnoreCollision(thisCollider, coll.collider);
         }
-        else if((coll.gameObject.tag == "lArm" || coll.gameObject.tag == "rArm" || coll.gameObject.tag == "rLeg" || coll.gameObject.tag == "lLeg" || coll.gameObject.tag == "lFoot" || coll.gameObject.tag == "rFoot") && thisRigid.velocity.magnitude > 8f)
+        else if((coll.gameObject.tag == "lArm" || coll.gameObject.tag == "rArm" || coll.gameObject.tag == "rLeg" || coll.gameObject.tag == "lLeg" || coll.gameObject.tag == "lFoot" || coll.gameObject.tag == "rFoot") && active)//&& thisRigid.velocity.magnitude > (BulletSpeed - 5))
         {
+            Debug.LogError("whatusdude");
             bool removeRest = false;
             Vector3 velocity = thisRigid.velocity;
             int i = 0;
@@ -102,13 +109,12 @@ public class Bullet : MonoBehaviour {
             GameObject limb = new GameObject();
             if(coll.gameObject.transform.parent != null)
             {
-                Stickman hitStick = coll.gameObject.transform.root.gameObject.GetComponent<Stickman>();
+                //Stickman hitStick = coll.gameObject.transform.root.gameObject.GetComponent<Stickman>();
                 hitStick.health -= (thisRigid.velocity.magnitude * hitMultiplier );
                 if(hitStick.health <= 0 && !hitStick.dead)
                 {
                     hitStick.dead = true;
-                    AudioSource sawsy = stick.dyingAudio[UnityEngine.Random.Range(0, stick.dyingAudio.Length - 1)];
-                    sawsy.PlayOneShot(sawsy.clip);
+                    stick.PlayRandomClip(stick.dyingAudio);
                     if(!screenF.recurse)
                     {
                         screenF.Activate();
@@ -126,16 +132,26 @@ public class Bullet : MonoBehaviour {
                 if(tag == "rLeg")
                 {
                     limb = hitStick.rLeg;
+                    //hitStick.body_muscle.activated = false;
                 }
                 if(tag == "lLeg")
                 {
                     limb = hitStick.lLeg;
+                    //hitStick.body_muscle.activated = false;
+                }
+                if(!hitStick.Player)
+                {
+                    hitStick.firing = true;
+                    hitStick.lastPos = hitStick.playerPos;
                 }
                 int length = limb.transform.childCount;
                 int limbIndex = coll.gameObject.transform.GetSiblingIndex();
                 coll.gameObject.transform.parent = null;
                 coll.gameObject.GetComponent<Rigidbody2D>().gravityScale = 1f;
-                Destroy(coll.gameObject.GetComponent<muscle_holder>());
+                muscle_holder holder = coll.gameObject.GetComponent<muscle_holder>();
+                holder.activated = false;
+                //Destroy(holder);
+                // dont know if commenting this doesn anything
                 // no idea why this isn't working, just you can't set gravity scale of block that's hit to 1
                 // like even doing manuallly in gui does nothing
                 Destroy(coll.gameObject.GetComponent<HingeJoint2D>());
@@ -144,7 +160,7 @@ public class Bullet : MonoBehaviour {
                 {
                     GameObject objec = limb.transform.GetChild(i).gameObject;
                     //Debug.LogError("noderef" + objec.GetInstanceID());
-                    if(i == limbIndex && !removeRest && i != length - 1)//objec.GetInstanceID() == coll.gameObject.GetInstanceID())
+                    if(i == limbIndex && !removeRest && i != length)//objec.GetInstanceID() == coll.gameObject.GetInstanceID())
                     {
                         removeRest = true;
                         Debug.LogError("swaggyp" + i);
@@ -159,10 +175,14 @@ public class Bullet : MonoBehaviour {
                         // }
                         counter++;
                         //objec.GetComponent<muscle_holder>().muscle.bone = null;
-                        Destroy(objec.GetComponent<muscle_holder>());
+                        muscle_holder thisHolder = objec.GetComponent<muscle_holder>();
+                        thisHolder.activated = false;
+                        Destroy(thisHolder);
                         objec.transform.parent = null;
                         Rigidbody2D body = objec.GetComponent<Rigidbody2D>();
                         body.gravityScale = 1f;
+                        body.drag = 0f;
+                        //hitStick.body_muscle.bone.drag = 0f;
                         body.AddForce(velocity * (0.5f * body.mass), ForceMode2D.Impulse);
                         //Destroy(objec.GetComponent<HingeJoint2D>());
                     }
@@ -179,10 +199,11 @@ public class Bullet : MonoBehaviour {
             {
                 Destroy(coll.gameObject.GetComponent<HingeJoint2D>());
             }
+            //foreach(_Muscle musc in hitStick.muscles)
         }
-        else if(coll.gameObject.tag == "Body" || coll.gameObject.tag == "Head"  && thisRigid.velocity.magnitude > 8f)
+        else if((coll.gameObject.tag == "Body" || coll.gameObject.tag == "Head") && active) //&& thisRigid.velocity.magnitude > (BulletSpeed - 5))
         {
-            Stickman hitStick = coll.gameObject.transform.root.gameObject.GetComponent<Stickman>();
+            //Stickman hitStick = coll.gameObject.transform.root.gameObject.GetComponent<Stickman>();
             int counter1 = 0;
             foreach(int id in ids)
             {
@@ -207,6 +228,7 @@ public class Bullet : MonoBehaviour {
             }
             Rigidbody2D body = coll.gameObject.GetComponent<Rigidbody2D>();
             body.AddForce(thisRigid.velocity * (0.5f * body.mass * 2), ForceMode2D.Impulse);
+            body.drag = 0f;
             if(coll.gameObject.tag == "Head")
             {
                 if(!screenF.recurse && !hitStick.dead)
@@ -215,8 +237,7 @@ public class Bullet : MonoBehaviour {
                 }
                 // uhh seemingly doesn't work, might have messed up other stuff as well
                 // don't forget the shooting at 1700 in stickman, left a little note there or something
-                AudioSource sawsy = stick.headShotAudio[UnityEngine.Random.Range(0, stick.headShotAudio.Length - 1)];
-                sawsy.PlayOneShot(sawsy.clip);
+                stick.PlayRandomClip(stick.headShotAudio);
                 hitStick.dead = true;
                 HingeJoint2D joint = coll.gameObject.GetComponent<HingeJoint2D>();
                 Destroy(joint);
@@ -230,14 +251,18 @@ public class Bullet : MonoBehaviour {
                 hitStick.health -= (thisRigid.velocity.magnitude * hitMultiplier * 3);
                 if(hitStick.health <= 0 && !hitStick.dead)
                 {
-                    AudioSource sawsy = stick.dyingAudio[UnityEngine.Random.Range(0, stick.dyingAudio.Length - 1)];
-                    sawsy.PlayOneShot(sawsy.clip);
+                    stick.PlayRandomClip(stick.dyingAudio);
                     hitStick.dead = true;
                     if(!screenF.recurse)
                     {
                         screenF.Activate();
                     }
                 }
+            }
+            if(!hitStick.Player)
+            {
+                hitStick.firing = true;
+                hitStick.lastPos = hitStick.playerPos;
             }
         }
         else if(coll.gameObject.tag != "Gun" && manager.canPlay)
@@ -307,6 +332,15 @@ public class Bullet : MonoBehaviour {
                            // audioCli.SetData(files, 0);
                             //Audio.clip = audioCli;
                         }
+                    }
+        else if(coll.gameObject.tag == "World")
+        {
+            active = false;
+        }
+                    //Stickman script = coll.transform.root.gameObject.GetComponent<Stickman>();
+                    if(hitStick != null)
+                    {
+                        hitStick.CheckBrokenLimbs();
                     }
               }
               // file:///C:/Users/Jacob/Downloads/Unity Prototype/Prototype/Prototype/Assets/Sounds/Metallic/Soft Bullets.wav

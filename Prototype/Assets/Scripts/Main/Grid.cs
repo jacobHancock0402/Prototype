@@ -17,6 +17,7 @@ public class Grid : MonoBehaviour {
     public List<Node> path;
     public Node firstNode;
     public List<Node> NeighbourLs;
+    public int numWalkables = 0;
     public Node pathNode;
     public int pathCounter;
     void Start()
@@ -103,6 +104,7 @@ public class Grid : MonoBehaviour {
                         if(hit.collider == null)
                         {
                             grid[x1,y1].WalkAble = true;
+                            numWalkables++;
                         }
                         else
                         {
@@ -127,24 +129,34 @@ public class Grid : MonoBehaviour {
         float xInGrid = ObjectPos.x - renderer.bounds.min.x;
         float yInGrid = ObjectPos.y - renderer.bounds.min.y;
         int NodesInX = Mathf.Min(Mathf.RoundToInt(xInGrid / nodeDiameter), numNodesX - 1);
-        int NodesInY = Mathf.Min(Mathf.RoundToInt(yInGrid / nodeDiameter), numNodesX - 1);
+        int NodesInY = Mathf.Min(Mathf.RoundToInt(yInGrid / nodeDiameter), numNodesY - 1);
         if(!grid[NodesInX, NodesInY].WalkAble)
         {
-            if(grid[NodesInX, NodesInY + 1].WalkAble)
+            if(grid[NodesInX, Mathf.Min(NodesInY + 1, numNodesY - 1)].WalkAble)
             {
-                return grid[NodesInX, NodesInY + 1];
+                return grid[NodesInX, Mathf.Min(NodesInY + 1, numNodesY)];
             }
-            if(grid[NodesInX + 1, NodesInY].WalkAble)
+            if(grid[Mathf.Min(NodesInX + 1, numNodesX), NodesInY - 1].WalkAble)
             {
-                return grid[NodesInX + 1, NodesInY];
+                return grid[Mathf.Min(NodesInY + 1, numNodesY - 1), NodesInY];
             }
-            if(grid[NodesInX - 1, NodesInY].WalkAble)
+            if(grid[Mathf.Max(NodesInX - 1, 0), NodesInY].WalkAble)
             {
-                return grid[NodesInX - 1, NodesInY];
+                return grid[Mathf.Max(NodesInX - 1, 0), NodesInY];
             }
         }
         //Debug.LogError(NodesInX);
         return grid[NodesInX, NodesInY];
+    }
+    public List<Node> RandomPath(Node startNode)
+    {
+        if(numWalkables > 0)
+        {   
+            int x = UnityEngine.Random.Range(0, numNodesX - 1);
+            int y = startNode.y;
+            return PathFind(startNode, grid[x,y]);
+        }
+        return null;
     }
     public List<Node> PathFind(Node startNode , Node endNode) {
         List<Node> openList = new List<Node> {startNode};
@@ -276,12 +288,13 @@ public class Grid : MonoBehaviour {
         Node currentNode = endNode;
         pat.Add(currentNode);
         int i = 0;
-        //Debug.LogError(currentNode.x);
-
         while(i < 50000)
         {
             currentNode = currentNode.Parent;
             pat.Add(currentNode);
+            //Debug.LogError("cur" + currentNode.x);
+            //Debug.LogError("start" + startNode.x);
+
             if(currentNode.x == startNode.x && currentNode.y == startNode.y)
             {
                 //Debug.Log(i);

@@ -12,7 +12,7 @@ public GameObject chainPrefab;
 public Vector3 NewestChild;
 public Rigidbody2D NewestBody;
 public bool collided;
-public CheckColl coll;
+//public CheckColl coll;
 public bool DontAim;
 
 void Start()
