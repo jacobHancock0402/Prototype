@@ -77,10 +77,10 @@ public class Legs : MonoBehaviour {
 
             if (gameObject.tag == "AI")
             {
-                AI A = gameObject.transform.parent.gameObject.GetComponent<AI>();
-                A.collided = true;
-                A.jumping = false;
-                A.flying = false;
+                //AI A = gameObject.transform.parent.gameObject.GetComponent<AI>();
+                // A.collided = true;
+                // A.jumping = false;
+                // A.flying = false;
             }
         }
     }

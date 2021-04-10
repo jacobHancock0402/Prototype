@@ -7,9 +7,9 @@ public bool wasGrabbed;
 public GameObject BulletSpawner;
 public GameObject BulletPrefab;
 public GameObject EmptyObject;
-public int BulletSpeed = 50;
+public int BulletSpeed = 500;
 public bool A = false;
-public Sprite sprite;
+public Sprite spriteFlash;
 public GameObject chainPrefab;
 public Vector3 NewestChild;
 public Rigidbody2D NewestBody;
@@ -27,15 +27,20 @@ public GameObject flashParticleObj;
 public GameObject bloodCloudObj;
 public ControlFlashEmission flashControl;
 public AudioSource source;
-public SpriteRenderer Sprite;
+public SpriteRenderer GunSprite;
 public ControlBloodEmission bloodControl;
-public CameraShake shake;
+//public CameraShake shake;
 public ScreenFlashEffect screenF;
+public GameObject rightBulletPosObj;
+public GameObject leftBulletPosObj;
+public Vector3 bulletSpawn;
+public bool test;
+public float testAngle;
 
 void Start()
 {
     source = GetComponent<AudioSource>();
-    Sprite = GetComponent<SpriteRenderer>();
+    GunSprite = GetComponent<SpriteRenderer>();
     flashParticleObj = transform.GetChild(transform.childCount-3).gameObject;
     bloodCloudObj = transform.GetChild(transform.childCount-2).gameObject;
     bloodParticleObj = transform.GetChild(transform.childCount-1).gameObject;
@@ -69,21 +74,26 @@ void Update()
     }
     if(grabbed && !stick.dead)
     {
-        Vector3 direction = (Camera.main.ScreenToWorldPoint(Input.mousePosition));
-        float angle = Mathf.Atan2(direction.x, direction.y) * Mathf.Rad2Deg;
+        Vector3 endPoint = (Camera.main.ScreenToWorldPoint(Input.mousePosition));
+        Vector3 angularDirection = (Camera.main.ScreenToWorldPoint(Input.mousePosition) - transform.position).normalized;
+        float angle = Mathf.Atan2(angularDirection.x, angularDirection.y) * Mathf.Rad2Deg;
+        //Debug.LogError("disanglebedis" + angle);
         //gameObject.transform.rotation = Quaternion.Euler(0.0f, 0.0f, -angle + 90);
-        if (Sprite)
+        if (GunSprite)
         {
             if (-angle + 90 > 90)
             {
-                //Sprite.flipY = true;
+                GunSprite.flipY = true;
+                bulletSpawn = leftBulletPosObj.transform.position;
             }
 
             else
             {
-                //Sprite.flipY = false;
+                GunSprite.flipY = false;
+                bulletSpawn = rightBulletPosObj.transform.position;
             }
         }
+        flashParticleObj.transform.position = bulletSpawn;
        // foreach(_Muscle muscle in stick.muscles)
        // {
             //if(muscle.bone.gameObject.tag == arm.tag)
@@ -109,9 +119,17 @@ void Update()
         {
             transform.position = transform.parent.position;
         }
-        if(Input.GetMouseButtonDown(0))
+        if(Input.GetMouseButtonDown(0) && stick.Player)
         {
-            Fire(angle,direction, true);
+            Fire(angle, endPoint, true);
+        }
+    }
+    else if(test)
+    {
+        //angle = testAngle;
+        if(Input.GetKeyDown(KeyCode.M))
+        {
+            Fire(testAngle, transform.position + transform.right,false );
         }
     }
     wasGrabbed = grabbed;
@@ -293,15 +311,18 @@ else
          //Vector3 handDirection = (Camera.main.ScreenToWorldPoint(Input.mousePosition) - gameObject.transform.parent.parent.position).normalized;
         //float handAngle = Mathf.Atan2(direct.x, direct.y) * Mathf.Rad2Deg;
         Vector2 way = transform.right;
-        direct.Normalize();
+        //Quaternion rotation = Quaternion.AngleAxis(angle, Vector3.right);
+        //direct = (Vector2)(Quaternion.Euler(angle,0,0) * Vector2.right);
+        direct = direct.normalized;
         // what i was doing was using way instead of direct to just shoot out front of gun
-        float bulletAngle = Mathf.Atan2(direct.x, direct.y) * Mathf.Rad2Deg;
+        float bulletAngle = angle;
+        //direct = new Vector3(Mathf.Cos(angle * Mathf.Deg2Rad), Mathf.Sin(angle * Mathf.Deg2Rad)); //Mathf.Atan2(direct.x, direct.y) * Mathf.Rad2Deg;
         if (shoot == false)
         {
             GameObject b = Instantiate(BulletPrefab) as GameObject;
             shoot = false;
             b.tag = "Bullet";
-            Rigidbody2D body = b.AddComponent(typeof(Rigidbody2D)) as Rigidbody2D;
+            Rigidbody2D body = b.GetComponent<Rigidbody2D>();
             Bullet script = b.GetComponent<Bullet>();
             //PhysicsMaterial2D bouncy = new PhysicsMaterial2D();
             //bouncy.friction = 0;
@@ -315,12 +336,16 @@ else
             script.control = bloodControl;
             script.BloodParticle = bloodParticleObj;
             script.BloodCloud = bloodCloudObj;
-            source.PlayOneShot(source.clip);
+            GameObject obj = gameObject;
+            Debug.LogError("ALLTHISMONEY" + obj.tag);
+            stick.PlayAudio(source, obj);
             hand.GetComponent<Rigidbody2D>().AddForce(new Vector2(0f,2f), ForceMode2D.Impulse);
             body.mass = 0.1f;
+            body.simulated = true;
             body.collisionDetectionMode = CollisionDetectionMode2D.Continuous;
             body.interpolation = RigidbodyInterpolation2D.Interpolate;
-            b.transform.position = gameObject.transform.GetChild(0).position;
+            b.transform.position = bulletSpawn;
+            script.BulletSpeed = BulletSpeed;
             script.stick = stick;
             script.dir = direct;
             if(A == false)
@@ -331,7 +356,10 @@ else
             {
                  b.transform.rotation = Quaternion.Euler(0.0f, 0.0f, -bulletAngle);
             }
-            body.velocity = direct * BulletSpeed;
+            //direct = b.transform.forward;
+            //Debug.LogError("theVelocity" + direct);
+            body.velocity = b.transform.up * BulletSpeed; //((direct * BulletSpeed).normalized)* BulletSpeed;
+            // i fixed this issue, but the direction isn't right now, is only correct to north east
         }
         //control.startTim = 1000f;
         

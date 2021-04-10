@@ -22,7 +22,35 @@ public class Stickman: MonoBehaviour
 
     }
     public _Muscle[] muscles;
-    public bool pathFinding;
+    public List<_Muscle> rLegMuscleList;
+    public List<_Muscle> lLegMuscleList;
+    public List<_Muscle> rArmMuscleList;
+    public List<_Muscle> lArmMuscleList;
+    public string mousePosRelToBody;
+    public float startingHealth;
+    public bool hit = false;
+    public float SearchLength = 3f;
+    public Vector3 lastSeenPos;
+    public GameObject lastSeenPlayerLimb;
+    public bool Searching;
+    public float firingEndTime = 0f;
+    public float SearchStartTime = 0f;
+    public Stickman thisStick;
+    public bool logEnabled = true;
+    public Vector3 inAirMoveVectorRight;
+    public bool ctrlDown = false;
+    public Vector3 inAirMoveVectorLeft;
+    public Vector3 oneLegRightVector;
+    public Vector3 oneLegLeftVector;
+    public float pathFindTime = 0f;
+    public Stickman[] AI;
+    public float shooting_distance = 20f;
+    public float gun_sound_distance = 30f;
+    public float footstep_sound_distance = 5f;
+    public float lost_sight_distance = 30f;
+    public float timeAlertedStart = 0f;
+    public float timeAlerted = 0f;
+    public bool pathFinding = false;
     public Dictionary<string, AudioSource[]> Audios;
     public GameObject playerBody;
     public Vector3 playerPos;
@@ -36,6 +64,8 @@ public class Stickman: MonoBehaviour
     public AudioSource Soft_Bullets;
     public Stickman playerStick;
     public Vector3 thisHeadToPlayerChest;
+    public Vector3 facingDirection;
+    public float facingAngle;
     public bool deadBodySet;
     public bool firing = false;
     public shooting shoot;
@@ -47,6 +77,7 @@ public class Stickman: MonoBehaviour
     public float someTimer1 = 0f;
     public bool swingingL;
     public Vector3 lastPos;
+    public bool lastPosChanged = false;
     public bool Alerted;
     public GameObject Head;
     public string proneDir;
@@ -132,6 +163,7 @@ public class Stickman: MonoBehaviour
     public int counter;
     public bool Left;
     public float arm_length;
+    public float leg_length;
     public float leg_changex = 5f;
     public float leg_changey = 5f;
     public bool stretch = false;
@@ -155,6 +187,11 @@ public class Stickman: MonoBehaviour
     public RaycastHit2D rayL;
     public GameObject rArm;
     public GameObject lArm;
+    public List<GameObject> rArmList;
+    public List<GameObject> lArmList;
+    public List<GameObject> rLegList;
+    public List<GameObject> lLegList;
+    public Dictionary<string, bool> limbs;
     public Vector2 JumpVector;
     public Vector2 CopiedWalkRightVector = new Vector2(40,80);
     public Vector2 CopiedWalkLeftVector = new Vector2(-40,80);
@@ -227,6 +264,8 @@ public class Stickman: MonoBehaviour
     public Vector2 ogWalkLeftVector;
     public Vector2 ogWalkRightVector;
     public _Muscle muscleR;
+    public Collided rFootCollided;
+    public Collided lFootCollided;
     public float SprintMultiplier;
     public AudioSource[] AudioClips;
     public float timeAtLastShot = 0f;
@@ -240,6 +279,8 @@ public class Stickman: MonoBehaviour
     public Vector3 dirRArmToMouse;
     public AudioSource[] dyingAudio;
     public AudioSource[] headShotAudio;
+    public AudioSource[] suspiciousAudio;
+    public AudioSource[] giveUpAudio;
     public AudioSource headShot1;
     public AudioSource headShot2;
     public AudioSource headShot3;
@@ -248,6 +289,11 @@ public class Stickman: MonoBehaviour
     public AudioSource dying3;
     public AudioSource dying4;
     public AudioSource dying5;
+    public AudioSource alert;
+    public AudioSource suspicious1;
+    public AudioSource suspicious2;
+    public AudioSource giveUp;
+
     public float angleR;
     public float angleL;
     // in general seems to work in terms of moving to player
@@ -265,6 +311,11 @@ public class Stickman: MonoBehaviour
     // gravity scale = 0 means jank is minimal so it's clear rigid body is at fault
     public void Start()
     {
+        // so i've setup the system to deal with limb breakage
+        // i think all the sound works now, even slow down
+        // but the ai doesn't detect sound or anything, although will fire if see
+        // consider fllipping gun sprite as well
+        startingHealth = health;
         legs_armsPrefabColl = legs_armsPrefab.GetComponent<BoxCollider2D>();
         body_rigid = Body.GetComponent<Rigidbody2D>();
         playerDir = "right";
@@ -273,7 +324,16 @@ public class Stickman: MonoBehaviour
         simPress = new Dictionary<string, bool>();
         propelFunct = new function();
         animations = new List<function>();
+        rLegMuscleList = new List<_Muscle>();
+        lLegMuscleList = new List<_Muscle>();
+        rArmMuscleList = new List<_Muscle>();
+        lArmMuscleList = new List<_Muscle>();
         Audios = new Dictionary<string, AudioSource[]>();
+        limbs = new Dictionary<string, bool>();
+        limbs["rLeg"] = false;
+        limbs["lLeg"] = false;
+        limbs["rArm"] = false;
+        limbs["lArm"] = false;
         Audio_Map = new Dictionary<string, int>();
         AudioSource[] metalAudio = {Soft_Bullets, Loud_Bullets, defaultBulletHit};
         Audios.Add("Metallic", metalAudio);
@@ -291,8 +351,15 @@ public class Stickman: MonoBehaviour
         headShotAudio[0] = headShot1;
         headShotAudio[1] = headShot2;
         headShotAudio[2] = headShot3;
-        Debug.LogError("hello");
-        //Debug.logger.logEnabled = false;
+        suspiciousAudio = new AudioSource[2];
+        suspiciousAudio[0] = suspicious1;
+        suspiciousAudio[1] = suspicious2;
+        giveUpAudio = new AudioSource[1];
+        giveUpAudio[0] = giveUp;
+        if(Player)
+        {
+            Debug.logger.logEnabled = logEnabled;
+        }
 
         GameObject[] metals = GameObject.FindGameObjectsWithTag("Metallic");
         foreach(GameObject metal in metals)
@@ -335,12 +402,30 @@ public class Stickman: MonoBehaviour
     // add animation for backflip and frontflip by rotating 360 over set time
     private void Update()
     {
+        //Debug.LogError("changed" + lastPosChanged);
+        if(Player)
+        {
+            Debug.LogError("lookattehsky***REMOVED***s");
+        }
+        rFootCollided.otherleg = lFootCollided;
+        lFootCollided.otherleg = rFootCollided;
+        Debug.LogError("yeezusinmyrari" +oneLegHasCollided+Player);
         playerPos = playerBody.transform.position;
         if(!dead)
         {
-        dirRArmToMouse = (Camera.main.ScreenToWorldPoint(Input.mousePosition) - rArm.transform.position).normalized;
+        Vector3 mousePos = Camera.main.ScreenToWorldPoint(Input.mousePosition);
+        if(mousePos.x < Body.transform.position.x)
+        {
+            mousePosRelToBody = "left";
+        }
+        else
+        {
+            mousePosRelToBody = "right";
+        }
+        //proneDir = mousePOs
+        dirRArmToMouse = (mousePos - rArm.transform.position).normalized;
         angleR = Mathf.Round(Mathf.Atan2(dirRArmToMouse.x, dirRArmToMouse.y) * Mathf.Rad2Deg);
-        dirLArmToMouse = (Camera.main.ScreenToWorldPoint(Input.mousePosition) - lArm.transform.position).normalized;
+        dirLArmToMouse = (mousePos - lArm.transform.position).normalized;
         angleL = Mathf.Round(Mathf.Atan2(dirLArmToMouse.x, dirLArmToMouse.y) * Mathf.Rad2Deg);
         //WalkRightVector = direction * 2000;
         //WalkLeftVector = direction * 2000;
@@ -367,7 +452,8 @@ public class Stickman: MonoBehaviour
                         if(disableR == false && muscle.bone.gameObject.GetComponent<muscle_holder>() != null)
                         {
                             muscle.force = 100;
-                            muscle.bone.gravityScale = 0;
+                            muscle.bone.gravityScale = 1;
+                            // this is prob supposed to be 0 for climbing , but not sure so i just set it to 1 for death anis
                             muscle.ActivateMuscle();
                         }
                         else
@@ -384,7 +470,7 @@ public class Stickman: MonoBehaviour
                     if(disableL == false && muscle.bone.gameObject.GetComponent<muscle_holder>() != null)
                     {
                         muscle.force = 100;
-                        muscle.bone.gravityScale = 0;
+                        muscle.bone.gravityScale = 1;
                         muscle.ActivateMuscle();
                     }
                     else
@@ -403,6 +489,7 @@ public class Stickman: MonoBehaviour
 
         // legitimately no clue why right side doesn't work
         // seems to go through function and everything, but like resets quickly
+        Debug.LogError("obese" + Player);
         if(currentPivotArm == "lArm")
         {
             hand = lHand;
@@ -435,8 +522,10 @@ public class Stickman: MonoBehaviour
                 }
             }
         }
+        Debug.LogError("hardR" + Player);
         if(Player)
         {
+            Debug.LogError("***REMOVED***whosdis");
 
 
  
@@ -445,9 +534,14 @@ public class Stickman: MonoBehaviour
             Right = true;
             Direction = "Right";
         }
+        if(Input.GetKeyDown(KeyCode.A))
+        {
+            Left = true;
+            Direction = "Left";
+        }
         if (Input.GetKeyDown(KeyCode.H))
         {
-            if(crouching)
+            if(crouching || proning)
             {
                 function funct2 = new function();
                 funct2.name = "GetUpAni";
@@ -468,9 +562,10 @@ public class Stickman: MonoBehaviour
                 crouching = true;
             }
         }
+        Debug.LogError("yeet");
         if(Input.GetKeyDown(KeyCode.K))
         {
-            if(proning)
+            if(proning || crouching)
             {
                 function funct2 = new function();
                 funct2.name = "GetUpAni";
@@ -481,14 +576,28 @@ public class Stickman: MonoBehaviour
             else
             {
                 function funct1 = new function();
+                proneDir = playerDir;
                 funct1.name = "StraightAni";
                 funct1.animations = animations;
                 animations.Add(funct1);
             }
         }
+        if(Input.GetKeyDown(KeyCode.LeftControl))
+        {
+            ctrlDown = !ctrlDown;
+        }
+        Debug.LogError("SAVAGE");
         if(crouching)
         {
-            if((playerDir == "left" && body_muscle.restRotation == -90) || (playerDir == "right" && body_muscle.restRotation == 90))
+            // if(Input.GetKeyDown(KeyCode.LeftArrow) && crouching)
+            // {
+            //     playerDir = "right";
+            // }
+            // if(Input.GetKeyDown(KeyCode.RightArrow) && crouching)
+            // {
+            //     playerDir = "left";
+            // }
+            if(((mousePosRelToBody == "left" && body_muscle.restRotation == -90) || (mousePosRelToBody == "right" && body_muscle.restRotation == 90)) && !ctrlDown)
             {
                 function funct = new function();
                 funct.name = "CrouchAni";
@@ -496,7 +605,7 @@ public class Stickman: MonoBehaviour
                 animations.Add(funct);
             }
         }
-        if(proning)
+        if(proning && !ctrlDown)
         {
             if(!priorityAnimating)
             {
@@ -507,6 +616,7 @@ public class Stickman: MonoBehaviour
                 animations.Add(funct);
             }
         }
+        Debug.LogError("swaz");
         if((swingingR || swingingL) && !HasCollidedWalk && !HasCollidedJump && (Time.time - AirTime > 1f))
         {
            swinging = true;
@@ -567,13 +677,23 @@ public class Stickman: MonoBehaviour
             animations.Add(funct);
             flying = false;
         }
+        Debug.LogError("weballin***REMOVED***");
         if(Input.GetKeyDown(KeyCode.Space))
         {
             //foreach(_Muscle muscle in upperLeg)
             //{
                 //muscle.restRotation = 90;
+            Debug.LogError("newVanNoCan");
             //}
-            if(HasCollidedJump)
+            if(Player)
+            {
+                Debug.LogError("newwhipfourdoor");
+                // are you ***REMOVED***ing being serious, somehow this doesn't get called when space is pressed, but no errors in update
+                // one leg should work fine?, but two leg doesn't 
+                // arm imp done, just test
+                // then test ai
+            }
+            if(oneLegHasCollided)
             {
                 Jump();
             }
@@ -626,6 +746,13 @@ public class Stickman: MonoBehaviour
             if (Time.time - time > 0.5)
             {
                 Time.timeScale = 1f;
+                foreach(Stickman ai in AI)
+                {
+                    foreach(AudioSource source in ai.AudioSources)
+                    {
+                        source.pitch = 1f;
+                    }
+                }
                 foreach(AudioSource source in AudioSources)
                 {
                     source.pitch = 1f;
@@ -714,11 +841,15 @@ public class Stickman: MonoBehaviour
 
         if (disableL == false && !priorityAnimating) 
         {
-            foreach(_Muscle muscle in muscles)
+            foreach(_Muscle muscle in lArmMuscleList)
             {
-                if(muscle.bone.gameObject.tag == "lArm")
+                if(muscle.bone.gameObject.transform.parent != null)
                 {
+                    //Vector3 dir = (Camera.main.ScreenToWorldPoint(Input.mousePosition) - muscle.bone.transform.position).normalized;
+                    //angleR = Mathf.Round(Mathf.Atan2(dir.x, dir.y) * Mathf.Rad2Deg);
                     muscle.restRotation = -angleL + 180;
+                    //muscle.bone.AddForce(dirRArmToMouse * 0.4f, ForceMode2D.Impulse);
+                    //muscle.bone.AddForce(direction * 0.2f, ForceMode2D.Impulse);
                 }
             }
             // angle shouldn't be negative but otherwise it pretty much goes in opposite direction
@@ -757,9 +888,9 @@ public class Stickman: MonoBehaviour
             //funct.animations = animations;
             //animations.Add(funct);
 
-            foreach(_Muscle muscle in muscles)
+            foreach(_Muscle muscle in rArmMuscleList)
             {
-                if(muscle.bone.gameObject.tag == "rArm")
+                if(muscle.bone.gameObject.transform.parent != null)
                 {
                     //Vector3 dir = (Camera.main.ScreenToWorldPoint(Input.mousePosition) - muscle.bone.transform.position).normalized;
                     //angleR = Mathf.Round(Mathf.Atan2(dir.x, dir.y) * Mathf.Rad2Deg);
@@ -1108,11 +1239,11 @@ public class Stickman: MonoBehaviour
 
         // a lot of drag ***REMOVED*** here to try and make more stable
         // just makes too slow and awkward
-        if (Input.GetKeyDown(KeyCode.A))
-        {
-            Left = true;
-            Direction = "Left";
-        }
+        // if (Input.GetKeyDown(KeyCode.A))
+        // {
+        //     Left = true;
+        //     Direction = "Left";
+        // //}
         Vector3 pos1 = muscleR.bone.gameObject.transform.position - muscleL.bone.gameObject.transform.position;
         Vector3 pos2 = muscleL.bone.gameObject.transform.position - muscleR.bone.gameObject.transform.position;
         Debug.Log(pos1.magnitude);
@@ -1197,8 +1328,16 @@ public class Stickman: MonoBehaviour
             rbLLeg.AddForce(direction * 100, ForceMode2D.Impulse);
             tim = Time.time;
         }
+        if(Player)
+        {
+            Debug.LogError("sliding" + Sliding + Right + tim);
+        }
         if (!Sliding && Right == true && (Time.time - tim) > delay)
         {
+            if(Player)
+            {
+                Debug.LogError("***REMOVED***mybuig***REMOVED***" + HasCollidedWalk);
+            }
             if(HasCollidedWalk)
             {
                 moving = true;
@@ -1217,10 +1356,10 @@ public class Stickman: MonoBehaviour
                 {
                     if(lastDir == "left")
                     {
-                        Jump();
+                        //Jump();
                         if(crouching)
                         {
-                            CrouchAni();
+                            //CrouchAni();
                         }
                         tim = Time.time;
                     }
@@ -1228,19 +1367,29 @@ public class Stickman: MonoBehaviour
                     {
                         if(HasCollidedWalk && stepR == "right")
                         {
+                            Debug.LogError("omgapril8th");
                             Invoke("Step1Right", 0f);
                         }
                         else if(HasCollidedWalk && stepR == "left")
                         {
+                            Debug.LogError("letsgetthesedubsmane");
+
                             Invoke("Step2Right", 0f);
                         }
                     }
                 }
             }
             // could make this else statement and let you fly
-            else if(oneLegHasCollided)
+            else if(limbs["rLeg"] && limbs["lLeg"])
             {
-                body_muscle.bone.AddForce(new Vector2(100f,0f), ForceMode2D.Impulse);
+                if(oneLegHasCollided)
+                {
+                    body_muscle.bone.AddForce(oneLegRightVector, ForceMode2D.Impulse);
+                }
+            }
+            if(!oneLegHasCollided)
+            {
+                body_muscle.bone.AddForce(inAirMoveVectorRight);
             }
             playerDir = "right";
             lastDir = "right";
@@ -1252,7 +1401,7 @@ public class Stickman: MonoBehaviour
         // way to little mass on dude to effect rope
         // could increase? or add force to rope although this would look weird
         // could try and simulate a weigth at teh end of the rope
-        else if (!Sliding && Left == true && (Time.time - tim) > delay)
+        if (!Sliding && Left == true && (Time.time - tim) > delay)
         {
             if(HasCollidedWalk)
             {
@@ -1267,9 +1416,9 @@ public class Stickman: MonoBehaviour
                     {
                         if(crouching)
                         {
-                            CrouchAni();
+                            //CrouchAni();
                         }
-                        Jump();
+                        //Jump();
                         tim = Time.time;
                     }
                     //foreach(_Muscle muscle in muscles)
@@ -1293,9 +1442,16 @@ public class Stickman: MonoBehaviour
                     }
                 }
             }
-            else if(oneLegHasCollided)
+            else if(limbs["rLeg"] && limbs["lLeg"])
             {
-                body_muscle.bone.AddForce(new Vector2(-100f,0f), ForceMode2D.Impulse);
+                if(oneLegHasCollided)
+                {
+                    body_muscle.bone.AddForce(oneLegLeftVector, ForceMode2D.Impulse);
+                }
+            }
+            if(!oneLegHasCollided)
+            {
+                body_muscle.bone.AddForce(inAirMoveVectorLeft);
             }
             playerDir = "left";
             lastDir = "left";
@@ -1739,44 +1895,138 @@ public class Stickman: MonoBehaviour
         {
             LayerMask mask = LayerMask.GetMask("Player");
             thisHeadToPlayerChest = playerPos - Head.transform.position;
-            RaycastHit2D hit = Physics2D.Raycast(Head.transform.position, thisHeadToPlayerChest, thisHeadToPlayerChest.magnitude, ~mask);
-            //Debug.LogError("pl" + hit.collider.gameObject.tag);
-            float othAngle = Vector3.Angle(Head.transform.right, thisHeadToPlayerChest);
-            //Debug.LogError("othang" + othAngle);
-            if(hit.collider == null && !playerStick.dead && othAngle < 35)
+            ContactFilter2D filter = new ContactFilter2D();
+            filter.SetLayerMask(mask);
+            List<Collider2D> playerColliders = new List<Collider2D>();
+            int length = Physics2D.OverlapCircle(Body.transform.position,lost_sight_distance + 3, filter, playerColliders);
+            Vector3 HeadToObj = thisHeadToPlayerChest;
+            float othAngle = Vector3.Angle(Head.transform.right, HeadToObj);
+            RaycastHit2D checkCollWithWorld = Physics2D.Raycast(Head.transform.position, HeadToObj, HeadToObj.magnitude, ~mask);
+            for(int i=0;i<length;i++)
             {
-                Debug.LogError("***REMOVED***as***REMOVED***" + thisHeadToPlayerChest.magnitude);
+                //if(playerColliders[i].gameObject.layer == 31)
+                //{
+                    HeadToObj = playerColliders[i].gameObject.transform.position - Head.transform.position;
+                    checkCollWithWorld = Physics2D.Raycast(Head.transform.position, HeadToObj, HeadToObj.magnitude, ~mask);
+            //Debug.LogError("pl" + hit.collider.gameObject.tag);
+                    othAngle = Vector3.Angle(Head.transform.right, HeadToObj);
+                    if (checkCollWithWorld.collider == null && (othAngle < (facingAngle + 35) && othAngle > (facingAngle - 35))) //|| (othAngle > 145 && othAngle < 215)))
+                    {
+                        lastSeenPlayerLimb = playerColliders[i].gameObject;
+                        break;
+                    }
+                    HeadToObj = thisHeadToPlayerChest;
+                    // ai search seems to generally work , even in sus range
+                    // fires whenever in sight
+                    // should prob have a view cone instead of just checking angles behind and infront
+                    // won't fire back if you fire yet
+                    // most of the time he will though because can see, but wont when above and cant
+                    // so maybe adjust it so view cone is pointing toward the lastPos dir
+                    // then take angle's either side of this
+                    // also sound can be buggy, especially the oh well
+                //}
+            }
+
+
+            //Debug.LogError("othang" + othAngle);
+            //Debug.LogError("upuhvalleysmun" + othAngle);
+            if(Alerted && timeAlertedStart == 0)
+            {
+                timeAlertedStart = Time.time;
+            }
+            else if(!Alerted)
+            {
+                timeAlertedStart = 0f;
+            }
+            timeAlerted = Time.time - timeAlertedStart;
+            if(Alerted && timeAlerted > 2f && !Sprinting)
+            {
+                Debug.LogError("yeswedidthisnolabelturnedourstoryintoa***REMOVED***ingfable");
+                MultiplyWalkVector();
+            }
+
+            if(checkCollWithWorld.collider == null && !playerStick.dead && (othAngle < (facingAngle + 35) && othAngle > (facingAngle - 35)))
+            {
+                //Debug.LogError("***REMOVED***as***REMOVED***" + thisHeadToPlayerChest.magnitude);
                 if(!firing)
                 {
                     timeAtLastShot = Time.time;
                 }
-                if(thisHeadToPlayerChest.magnitude > 10f && !Alerted)
+                if((thisHeadToPlayerChest.magnitude >= shooting_distance && thisHeadToPlayerChest.magnitude <= lost_sight_distance) && !Alerted && playerStick.HasCollidedWalk)
                 {
-                    path = Grid.PathFind(Grid.GetCurrentNode(rFoot.transform.position), Grid.GetCurrentNode(playerStick.rFoot.transform.position));
+                    //path = Grid.PathFind(Grid.GetCurrentNode(rFoot.transform.position), Grid.GetCurrentNode(playerStick.rFoot.transform.position));
                     Alerted = true;
                     lastPos = playerStick.rFoot.transform.position;
+                    lastSeenPos = lastSeenPlayerLimb.transform.position;
+                    lastPosChanged = true;
+                    pathFinding = false;
+                    PlayRandomClip(suspiciousAudio);
+                    Debug.LogError("CAUSEHARDWORKSHOULDPAYOFF");
                 }
-                else
+                // else if(thisHeadToPlayerChest.magnitude > lost_sight_distance)
+                // {
+                //     Alerted = false;
+                //     PlayRandomClip(giveUpAudio);
+                //     Debug.LogError("NEEDA***REMOVED***TO***REMOVED***ME");
+                // }
+                else if(thisHeadToPlayerChest.magnitude < shooting_distance && !firing)
                 {
+                    Debug.LogError("putmylifeinlockout");
                     Alerted = false;
+                    firingEndTime = 0f;
+                    lastPos = playerStick.rFoot.transform.position;
+                    lastSeenPos = lastSeenPlayerLimb.transform.position;
+                    lastPosChanged = true;
                     firing = true;
+                    facingDirection = lastSeenPos - Head.transform.position;
+                    facingAngle = Vector3.Angle(Head.transform.right, facingDirection);
+                    if(!Searching)
+                    {
+                        alert.PlayOneShot(alert.clip);
+                    }
+
                 }
             }
-            else if(hit.collider.gameObject.tag == "World")
+            if(checkCollWithWorld.collider != null)
             {
-                firing = false;
+                //Debug.LogError("doitallagain" + hit.collider.gameObject.tag);
+                if(firing)
+                {
+                    if(firingEndTime == 0)
+                    {
+                        firingEndTime = Time.time;
+                    }
+                    //checkCollWithWorld.collider.gameObject.tag == "World"
+                    else if((Time.time - firingEndTime) > 2f && (Time.time - firingEndTime) < (2f + SearchLength))
+                    {
+                        firing = false;
+                        Searching = true;
+                        SearchStartTime = Time.time;
+                    }
+                }
+                Alerted = false;
             }
         }
-        // no ***REMOVED***ng iidea what's happening here
-        // on 4th ai, it never sets flying to true, implying player is true , but it's not
-        // there is weird errors beofre it but on removal still no work
-        // seriously no idea
+        if(SearchStartTime > 0 && (Time.time - SearchStartTime) > (SearchLength) && Searching)
+        {
+            PlayRandomClip(giveUpAudio);
+            firingEndTime = 0f;
+            SearchStartTime = 0f;
+            Searching = false;
+        }
+        // okay um only thing now is searching after lost and making sure doesn't shoot through walls
+        if(!Player)
+        {
+            //Debug.LogError("uhhello" + firing +playerStick.dead);
+        }
         if(firing && !playerStick.dead)
         {
             timeSinceLastShot = Time.time - timeAtLastShot;
-            lastPos = playerStick.rFoot.transform.position;
-            float angle = Mathf.Round(Mathf.Atan2(thisHeadToPlayerChest.x, thisHeadToPlayerChest.y) * Mathf.Rad2Deg);
-            Debug.LogError("cangle" + angle);
+            //lastPos = playerStick.rFoot.transform.position;
+            //lastPosChanged = true;
+            Vector3 firingDirection = lastSeenPos - Head.transform.position;
+            float angle = Mathf.Round(Mathf.Atan2(firingDirection.x, firingDirection.y) * Mathf.Rad2Deg);
+            //Debug.LogError("cangle" + angle);
             foreach(_Muscle muscle in muscles)
             {
                 if(gunInL && muscle.bone.gameObject.tag == "lArm" || gunInR && muscle.bone.gameObject.tag == "rArm")
@@ -1790,16 +2040,35 @@ public class Stickman: MonoBehaviour
                 timeAtLastShot = Time.time;
             }
         }
+        else if(!playerStick.dead && !Player)
+        {
+           foreach(_Muscle muscle in muscles)
+            {
+                if(gunInL && muscle.bone.gameObject.tag == "lArm" || gunInR && muscle.bone.gameObject.tag == "rArm")
+                {
+                    muscle.restRotation = -facingAngle + 90;
+                }
+            }
+        }
         // if(Alerted)
         // {
         //     if(thisHeadToChest)
         // }
-        if(!pathFinding && !Player);
+        //Debug.LogError(pathFinding + "dumb***REMOVED***" + gameObject.name);
+        lastPosChanged = false;
+        //Debug.LogError(" this is the time" + pathFindTime);
+        // no clue ***REMOVED*** is happening, literally passing impossible conditions;
+
+        if(!Player && (Time.time - pathFindTime) > 2f && (Alerted || firing || lastPosChanged))
         {
-            path = Grid.PathFind(Grid.GetCurrentNode(rFoot.transform.position), Grid.GetCurrentNode(lastPos));
+            lastPosChanged = false;
+            playerSearch(thisStick);
+            //Debug.LogError("swaggy");
         }
+        //Debug.LogError("wewonbro" + Player + ClimbingPhase + VaultPhase + (Time.time - timeSinceClimb));
         if(!Player && !ClimbingPhase && !VaultPhase && (Time.time - timeSinceClimb > 3f))
         {
+            Debug.LogError("lomann");
             // maybe use this actualOrigin, as means still work when close
             LayerMask mask = LayerMask.GetMask("World");
             LayerMask climbMask = LayerMask.GetMask("Climbable");
@@ -1918,6 +2187,7 @@ public class Stickman: MonoBehaviour
                 //Debug.LogError("saint***REMOVED***an");
             }
             //Debug.LogError(path[0].x);
+            Debug.LogError("saint***REMOVED***an");
             if(Input.GetKeyDown(KeyCode.O))
             {
                 firstNode = Grid.GetCurrentNode(rFoot.transform.position);
@@ -1928,6 +2198,7 @@ public class Stickman: MonoBehaviour
                 //Debug.LogError(path.Coude = path[0];
                 counter = 0;
             }
+            Debug.LogError("yeetusfeetus");
             currentNode = Grid.GetCurrentNode(Body.transform.position);
             Node lFootNode = Grid.GetCurrentNode(lFoot.transform.position);
             Node rFootNode = Grid.GetCurrentNode(rFoot.transform.position);
@@ -1942,21 +2213,22 @@ public class Stickman: MonoBehaviour
             }
             if(!lFootNode.WalkAble)
             {
-                lFootNode = Grid.grid[lFootNode.x, lFootNode.y + 1];
+                lFootNode = Grid.grid[lFootNode.x, Mathf.Min(Grid.numNodesY - 1, lFootNode.y + 1)];
                 //Debug.LogError("whomamamdis");
             }
             if(!rFootNode.WalkAble)
             {
-                rFootNode = Grid.grid[rFootNode.x, rFootNode.y + 1];
+                rFootNode = Grid.grid[rFootNode.x, Mathf.Min(Grid.numNodesY - 1, rFootNode.y + 1)];
                 //Debug.LogError("whosondis");
             }
             pathNode = path[pathNodeCounter];
-            // Debug.LogError("forward" + forwardFootNode.x);
-            // Debug.LogError("path" + pathNode.x);
+            //Debug.LogError("forward" + forwardFootNode.x);
+            //Debug.LogError("path" + pathNode.x);
             // Debug.LogError("something" + path[pathNodeCounter].x);
             if(path.Count > 0)
             {
                 pathFinding = true;
+                // this ***REMOVED*** actually straight up ***REMOVED***, no idea why it doesn't worktf my guy
 
 
 
@@ -1974,11 +2246,13 @@ public class Stickman: MonoBehaviour
                 // also the walking kinda weird now as has collided walk only has to be true on one fooit
                 if(rFootNode.WalkAble && lFootNode.WalkAble)
                 {
-
+                    Debug.LogError("***REMOVED******REMOVED***");
 
                     if(pathNodeCounter < path.Count)
                     {
                         //Debug.LogError(path.Count);
+                        //Debug.LogError("wewinning" + pathNode.x);
+                        //Debug.LogError("welosing" + forwardFootNode.x);
                         counter2 = 0;
                         if(pathNode.x < forwardFootNode.x || (forwardFootNode.x == pathNode.x && lastDir == "left"))
                         {
@@ -2071,14 +2345,15 @@ public class Stickman: MonoBehaviour
         }
         else
         {
-            pathFinding = false;
+            Debug.LogError("GetThe***REMOVED***OutMyRidew");
+            //pathFinding = false;
         }
         // all ai ***REMOVED*** seems fine now, can go under and crawl and crouch(i think)
         // now that foot has angle it's doing the weird not walk thing again on inclines, when transitioning from 2 diff surface
         // otherwise after that fixed just sure up the walking and then do the jumping
 
             // solution above is stupid af, but don#t know ho;else to fix
-            // the problem is that he sometimes just stops moving after dropping down, depending on the height, leading me to believe that the node is getting set to the right  one or
+            // the problem is thhat he sometimes just stops moving after dropping down, depending on the height, leading me to believe that the node is getting set to the right  one or
             // otherwise everything should be good, so now climbing
             // doesn't even work lol ***REMOVED*** off you little ***REMOVED***ing ***REMOVED***, why does it depend on height, but then allowing leniency changes nothing, ***REMOVED***
 
@@ -2126,6 +2401,15 @@ public class Stickman: MonoBehaviour
         }
         deadBodySet = true;
     }
+    if(health < startingHealth && !hit)
+    {
+        foreach(_Muscle musc in muscles)
+        {
+            //musc.bone.gravityScale = 1f;
+            musc.bone.drag = 0f;
+        }
+        hit = true;
+    }
 }
         //else if(!flying && muscles[0].restRotation == 70)
         //{
@@ -2155,7 +2439,8 @@ public class Stickman: MonoBehaviour
         if(HasCollidedWalk)
         {
             // could experiment with adding forces from different places i.e knee to stop the tripping
-            muscleR.bone.AddForce(WalkRightVector * WalkMultiplier, ForceMode2D.Impulse);
+            //Debug.LogError("werunthisjoint" + walk);
+            muscleR.bone.AddForce(WalkRightVector * (muscleR.bone.mass / foot_mass), ForceMode2D.Impulse);
         //rbRIGHT[rbRIGHT.Length / 2 ].AddForce(WalkRightVector, ForceMode2D.Impulse);
             //foreach (_Muscle muscle in muscles)
             //{
@@ -2198,7 +2483,7 @@ public class Stickman: MonoBehaviour
         int num = 0;
         if(HasCollidedWalk)
         {
-        muscleL.bone.AddForce(WalkRightVector * WalkMultiplier * 1.1f, ForceMode2D.Impulse);
+            muscleL.bone.AddForce(WalkRightVector* 1.1f  * (muscleL.bone.mass / foot_mass), ForceMode2D.Impulse);
             //rbLEFT[rbLEFT.Length / 2 ].AddForce(WalkRightVector * 0.9f, ForceMode2D.Impulse);
         //foreach (_Muscle muscle in muscles)
             //{
@@ -2212,12 +2497,17 @@ public class Stickman: MonoBehaviour
              stepR = "right";
         }
     }
- 
+    // idk bro im so ***REMOVED***ing tired and bored
+    // i think the ai aight now, just slight tweaks
+    // im tryna work out ai and player moving with broken limbs
+    // yeak idk why don't work though, like maybe i should try delete the muscles,
+    // but this should also work, not sure if muscleL and R get Changed
+    //
      public void Step1Left()
     {
         if(HasCollidedWalk)
         {
-            muscleL.bone.AddForce(WalkLeftVector * WalkMultiplier, ForceMode2D.Impulse);
+            muscleL.bone.AddForce(WalkLeftVector  * (muscleL.bone.mass / foot_mass), ForceMode2D.Impulse);
             tim = Time.time;
             stepL = "right";
         }
@@ -2230,7 +2520,7 @@ public class Stickman: MonoBehaviour
         //muscleL.bone.AddForce(-WalkLeftVector * 0.5f, ForceMode2D.Impulse);
         if(HasCollidedWalk)
         {
-            muscleR.bone.AddForce(WalkLeftVector * WalkMultiplier * 1.1f, ForceMode2D.Impulse);
+            muscleR.bone.AddForce(WalkLeftVector * 1.1f  * (muscleR.bone.mass / foot_mass), ForceMode2D.Impulse);
             tim = Time.time;
             stepL = "left";
         }
@@ -2315,13 +2605,26 @@ public class Stickman: MonoBehaviour
     public void Jump()
     {
         // could add vectors as variables to edit in editor
-        if (HasCollidedJump)
+        Vector2 vector = JumpVector;
+        // if(!regular)
+        // {
+        //     vector = TurnJumpVector;
+        // }
+        Debug.LogError("youwhat'sgoodman" +oneLegHasCollided);
+        if (oneLegHasCollided)
         {
-            foreach(_Muscle muscle in legs)
+            foreach(_Muscle muscle in rLegMuscleList)
             {
-                if(muscle.bone)
+                if(muscle != null && muscle.bone.gameObject.transform.parent != null)
                 {
-                    muscle.bone.AddForce(JumpVector, ForceMode2D.Impulse);
+                    muscle.bone.AddForce(vector, ForceMode2D.Impulse);
+                }
+            }
+            foreach(_Muscle muscle in lLegMuscleList)
+            {
+                if(muscle != null && muscle.bone.gameObject.transform.parent != null)
+                {
+                    muscle.bone.AddForce(vector, ForceMode2D.Impulse);
                 }
             }
         }
@@ -2378,6 +2681,7 @@ public class Stickman: MonoBehaviour
             weapon.GetComponent<shooting>().grabbed = false;
         }
         weapon.transform.SetParent(null);
+        BoxCollider2D coll = weapon.AddComponent(typeof(BoxCollider2D)) as BoxCollider2D;
         
     }
 
@@ -2652,6 +2956,13 @@ public class Stickman: MonoBehaviour
     {
         Time.timeScale = 0.1f;
         time = Time.time;
+        foreach(Stickman ai in AI)
+        {
+            foreach(AudioSource source in ai.AudioSources)
+            {
+                source.pitch = 0.2f;
+            }
+        }
         foreach(AudioSource source in AudioSources)
         {
             source.pitch = 0.2f;
@@ -2669,7 +2980,7 @@ public class Stickman: MonoBehaviour
         if(!proning)
         {
             Debug.LogError("***REMOVED***ass " + wasCrouched);
-            if(((body_muscle.restRotation == 90 && playerDir == "right") || (body_muscle.restRotation == -90 && playerDir == "left")))
+            if(((body_muscle.restRotation == 90 && mousePosRelToBody == "right") || (body_muscle.restRotation == -90 && mousePosRelToBody  == "left")))
             {
                 swivel = true;
             }
@@ -2685,7 +2996,7 @@ public class Stickman: MonoBehaviour
                 {
                     interval = 0.0001f;
                 }
-                if(playerDir == "left")
+                if(mousePosRelToBody == "left")
                 {
                     increment = 1;
                     target = 90;
@@ -2698,7 +3009,7 @@ public class Stickman: MonoBehaviour
             }
             else
             {
-                if(playerDir == "left")
+                if(mousePosRelToBody  == "left")
                 {
                     increment = -1;
                     target = 0;
@@ -2799,7 +3110,7 @@ public class Stickman: MonoBehaviour
                 Debug.LogError("neek" +animations[0].name + animations[0].finished);
             if(animations[0].name == "StraightAni")
             {
-                if (proneDir == "left")
+                if (mousePosRelToBody == "left")
                 {
 
                 
@@ -2957,6 +3268,17 @@ public class Stickman: MonoBehaviour
     }
     public void BodyToMouse()
     {
+        // this might have to be -90 or 90, depend on the playerdir
+        // but might work anyway
+        float angle = body_muscle.restRotation;
+        if(gunInL)
+        {
+            angle = angleL;
+        }
+        else if(gunInR)
+        {
+            angle = angleR;
+        }
         if(animations.Count > 0)
         {
             if(animations[0].name == "BodyToMouse")
@@ -3119,6 +3441,199 @@ public void aim()
             WalkLeftVector.x *= SprintMultiplier;
         }
     }
+    public void PlayAudio(AudioSource source, GameObject obj)
+    {
+        if(Player)
+        {
+            foreach(Stickman ai in AI)
+            {
+                if(!ai.dead)
+                {
+                    Debug.LogError("DAT'SME" + obj.tag);
+                    float distance = (obj.transform.position - ai.Head.transform.position).magnitude;
+                    if(((distance < gun_sound_distance) && (obj.tag == "Bullet" || obj.tag == "Gun")) || ((distance < footstep_sound_distance) && (obj.tag == "rFoot" || obj.tag == "lFoot")))
+                    {
+                        Debug.LogError("bithyouwasright");
+                        PlayRandomClip(suspiciousAudio);
+                        // Node actualNode = Grid.GetCurrentNode(source.gameObject.transform.position);
+                        // if(actualNode == null)
+                        // {
+                        //     actualNode = Grid.GetCurrentNode(rFoot.transform.position);
+                        // }
+                        // ai.path = Grid.PathFind(Grid.GetCurrentNode(ai.rFoot.transform.position), actualNode);
+                        // ai.pathFindTime = Time.time;
+                        // ai.Alerted = true;
+                        ai.lastPos = source.gameObject.transform.position;
+                        //ai.lastPosChanged = true;
+                        playerSearch(ai);
+                    }
+                }
+            }
+        }
+        source.PlayOneShot(source.clip);
+    }
+    public void PlayRandomClip(AudioSource[] sources)
+    {
+        int index = UnityEngine.Random.Range(0, sources.Length);
+        AudioSource chosen = sources[index];
+        chosen.PlayOneShot(chosen.clip);
+    }
+    public void CheckBrokenLimbs()
+    {
+        Debug.LogError("cowabunga");
+        foreach(_Muscle obj in rLegMuscleList)
+        {
+            if(obj.bone.transform.parent == null)
+            {
+                Debug.LogError("weWacky");
+                limbs["rLeg"] = false;
+                Collided lastFootColl = rFoot.GetComponent<Collided>();
+                Collided lFootColl = lFoot.GetComponent<Collided>();
+                lastFootColl.active = false;
+                // okay so prob gonna have to come up with a new walk when leg lost,
+                // like a hop if oneLegHasCollided or something
+                // increasing mass like here seemingly works ok, bu not sure about 2 feet
+                // and obviously would have to adjust vectors, maybe multiply by mass?
+                // also leg should be a coll for collided if no parent, as it can get stuck on the foot when broken off
+                //if(muscleR.bone.gameObject.transform.parent == null);
+                //{
+                    for(int i=rLegMuscleList.Count - 1;i>=0;i--)
+                    {
+                        if(rLegMuscleList[i].bone.gameObject.transform.parent != null)
+                        {
+                            muscleR = rLegMuscleList[i];
+                            muscleR.bone.mass = foot_mass;
+                            if(muscleR.bone.gameObject.GetComponent<Collided>() == null)
+                            {
+                                Collided coll = muscleR.bone.gameObject.AddComponent(typeof(Collided)) as Collided;
+                                rFootCollided = coll;
+                                coll.stick = lastFootColl.stick;
+                                coll.Audio = lastFootColl.Audio;
+                                coll.otherleg = lFootColl;
+                                lFootColl.otherleg = coll;
+                            }
+
+                            break;
+                        }
+                    }
+                //}
+                break;
+            }
+        }
+        foreach(_Muscle obj in lLegMuscleList)
+        {
+            if(obj.bone.transform.parent == null)
+            {
+                limbs["lLeg"] = false;
+                Collided lastFootColl = lFoot.GetComponent<Collided>();
+                Collided rFootColl = rFoot.GetComponent<Collided>();
+                lastFootColl.active = false;
+                //if(muscleL.bone.gameObject.transform.parent == null);
+                //{
+                    for(int i=lLegMuscleList.Count - 1;i>=0;i--)
+                    {
+                        if(lLegMuscleList[i].bone.gameObject.transform.parent != null)
+                        {
+                            muscleL = lLegMuscleList[i];
+                            muscleL.bone.mass = foot_mass;
+                            if(muscleL.bone.gameObject.GetComponent<Collided>() == null)
+                            {
+                                Collided coll = muscleL.bone.gameObject.AddComponent(typeof(Collided)) as Collided;
+                                lFootCollided = coll;
+                                coll.stick = lastFootColl.stick;
+                                coll.Audio = lastFootColl.Audio;
+                                coll.otherleg = rFootColl;
+                                rFootColl.otherleg = coll;
+                            }
+                            break;
+                        }
+                    }
+                //}
+                break;
+            }
+        }
+        foreach(_Muscle obj in rArmMuscleList)
+        {
+            if(obj.bone.transform.parent == null)
+            {
+                limbs["rArm"] = false;
+                disableR = true;
+                if(NowGrabbingR)
+                {
+                    DropGun(rHand);
+                    NowGrabbingR = false;
+                }
+                else if (NowHoldingR) 
+                {
+                    StopHold(rHand, "RightA");
+                }
+                CheckGrab rHandGrab = rHand.GetComponent<CheckGrab>();
+                //CheckGrab lHandColl = lHand.GetComponent<CheckGrab>();
+                rHandGrab.active = false;
+                //if(muscleL.bone.gameObject.transform.parent == null);
+                //{
+                for(int i=rArmMuscleList.Count - 1;i>=0;i--)
+                {
+                    if(rArmMuscleList[i].bone.gameObject.transform.parent != null)
+                    {
+                        rHand = rArmMuscleList[i].bone.gameObject;
+                        //muscleL.bone.mass = foot_mass * 10;
+                        CheckGrab grab = rHand.AddComponent(typeof(CheckGrab)) as CheckGrab;
+                        grab.Stick = rHandGrab.Stick;
+                        break;
+                    }
+                }
+                break;
+            }
+        }
+        foreach(_Muscle obj in lArmMuscleList)
+        {
+            if(obj.bone.transform.parent == null)
+            {
+                limbs["lArm"] = false;
+                disableL = true;
+                if(NowGrabbingL)
+                {
+                    DropGun(lHand);
+                    NowGrabbingL = false;
+                }
+                else if (NowHoldingL) 
+                {
+                    StopHold(lHand, "LeftA");
+                }
+                CheckGrab lHandGrab = lHand.GetComponent<CheckGrab>();
+                lHandGrab.active = false;
+                for(int i=lArmMuscleList.Count - 1;i>=0;i--)
+                {
+                    if(lArmMuscleList[i].bone.gameObject.transform.parent != null)
+                    {
+                        lHand = lArmMuscleList[i].bone.gameObject;
+                        //muscleL.bone.mass = foot_mass * 10;
+                        CheckGrab grab = rHand.AddComponent(typeof(CheckGrab)) as CheckGrab;
+                        grab.Stick = lHandGrab.Stick;
+                        break;
+                    }
+                }
+                break;
+            }
+        }
+    }
+    public void playerSearch(Stickman stick)
+    {
+        //stick.lastPosChanged = false;
+        //Debug.LogError("***REMOVED***ybig***REMOVED***yuh" + gameObject.name + Player + pathFinding);
+        Node actualNode = stick.Grid.GetCurrentNode(stick.lastPos);
+        stick.facingDirection = stick.lastSeenPos - stick.Head.transform.position;
+        stick.facingAngle = Vector3.Angle(stick.Head.transform.right, stick.facingDirection);
+        if(actualNode == null || !actualNode.WalkAble)
+        {
+            //actualNode = stick.Grid.GetCurrentNode(stick.playerStick.rFoot.transform.position);
+        }
+        //Debug.LogError("current" + actualNode.y);
+        //Debug.LogError("next" +stick.Grid.GetCurrentNode(stick.rFoot.transform.position).y );
+        stick.path = stick.Grid.PathFind(stick.Grid.GetCurrentNode(stick.rFoot.transform.position), actualNode);
+        stick.pathFindTime = Time.time;
+    }
     void OnDrawGizmos()
     {
         Gizmos.color = Color.green;
@@ -3129,6 +3644,9 @@ public void aim()
         Gizmos.DrawCube(Grid.GetCurrentNode(rFoot.transform.position).position, Vector3.one);
         Gizmos.DrawCube(Grid.GetCurrentNode(lFoot.transform.position).position, Vector3.one);
     }
+    // idk if this works or anything else really, have to check it but i cba 
+    // i been depressed i hit a wall ouch, you are mcy god that keeps me going, and you know it
+    // the ai doesn't shoot or move when player does i know dis
 
 }
 
@@ -3139,47 +3657,51 @@ public class _Muscle
     public float restRotation;
     public float force;
     public bool activated = true;
+    //public Stickman stick
  
     public void ActivateMuscle()
     { 
         GameObject gameobj = bone.gameObject;
         Stickman stick = gameobj.transform.root.gameObject.GetComponent<Stickman>();
-        if ((gameobj.tag != "rLeg" || (!stick.posturingR && !stick.NowPosturingR)) && (gameobj.tag != "lLeg" || (!stick.posturingL && !stick.NowPosturingL) ) && activated )
+        if(stick != null)
         {
-             if (restRotation > 0 || restRotation < 0 || (restRotation == 0 && stick.flying == false) )
-             {
-                if (bone.gameObject.tag == "rLeg" || bone.gameObject.tag == "rFoot")
-                {
-                    //Debug.Log("dodastankyleg");
-                    //Debug.Log(bone.rotation);
-                    //Debug.Log(restRotation);
-                    //Debug.Log(force);
-                    //restRotation = -stick.rLegRestRotation ;
-
-                }
-                if(bone.gameObject.tag == "LrLeg")
-                {
-                    //Debug.Log("gogetemchamp");
-                }
-                if(bone.gameObject.tag == "LlLeg")
-                {
-                    //Debug.Log("zoowemama");
-                }
-                if(bone.gameObject.tag == "lLeg" || bone.gameObject.tag == "lFoot" || bone.gameObject.tag == "Body")
-                {
-                    //Debug.Log("gobaby");
-                    //restRotation = -stick.lLegRestRotation;
-                    if(bone.gameObject.tag == "Body")
+            if ((gameobj.tag != "rLeg" || (!stick.posturingR && !stick.NowPosturingR)) && (gameobj.tag != "lLeg" || (!stick.posturingL && !stick.NowPosturingL) ) && activated )
+            {
+                 if (restRotation > 0 || restRotation < 0 || (restRotation == 0 && stick.flying == false) )
+                 {
+                    if (bone.gameObject.tag == "rLeg" || bone.gameObject.tag == "rFoot")
                     {
-                        //restRotation = -stick.lLegRestRotation - 90;
+                        //Debug.Log("dodastankyleg");
+                        //Debug.Log(bone.rotation);
+                        //Debug.Log(restRotation);
+                        //Debug.Log(force);
+                        //restRotation = -stick.rLegRestRotation ;
+
                     }
+                    if(bone.gameObject.tag == "LrLeg")
+                    {
+                        //Debug.Log("gogetemchamp");
+                    }
+                    if(bone.gameObject.tag == "LlLeg")
+                    {
+                        //Debug.Log("zoowemama");
+                    }
+                    if(bone.gameObject.tag == "lLeg" || bone.gameObject.tag == "lFoot" || bone.gameObject.tag == "Body")
+                    {
+                        //Debug.Log("gobaby");
+                        //restRotation = -stick.lLegRestRotation;
+                        if(bone.gameObject.tag == "Body")
+                        {
+                            //restRotation = -stick.lLegRestRotation - 90;
+                        }
+                    }
+                    if(bone.IsSleeping())
+                    {
+                        //Debug.Log("immmslleeep");
+                    }
+                    bone.MoveRotation(Mathf.LerpAngle(bone.rotation, restRotation, force * Time.deltaTime));
+                    //bone.angularVelocity *= 0.05f;
                 }
-                if(bone.IsSleeping())
-                {
-                    //Debug.Log("immmslleeep");
-                }
-                bone.MoveRotation(Mathf.LerpAngle(bone.rotation, restRotation, force * Time.deltaTime));
-                //bone.angularVelocity *= 0.05f;
             }
         }
     }

@@ -1,6 +1,7 @@
 
 using UnityEngine;
 using System.Collections;
+using System.Collections.Generic;
 using System;
 
 public class Rope : MonoBehaviour {
@@ -13,7 +14,7 @@ public class Rope : MonoBehaviour {
     public Rigidbody2D NewestBody;
     public Stickman stick;
     public AudioSource audio;
-    public Gun Gun;
+    //public Gun Gun;
     public float leg_changex = 5f;
     public float leg_changey = 5f;
     public GameObject footPrefab;
@@ -29,6 +30,10 @@ public class Rope : MonoBehaviour {
             body.mass = stick.body_mass;
             head.mass = stick.head_mass;
             stick.rbBody = gameObject.transform.root.GetChild(0).GetComponent<Rigidbody2D>();
+            stick.rArmList = new List<GameObject>();
+            stick.lArmList = new List<GameObject>();
+            stick.rLegList = new List<GameObject>();
+            stick.lLegList = new List<GameObject>();
             audio = GetComponent<AudioSource>();
         }
 
@@ -124,6 +129,15 @@ public class Rope : MonoBehaviour {
                     gameObject.GetComponent<Rigidbody2D>().mass = 1/length;
                     Debug.Log(1/length);
                     body.gravityScale = 0;
+                    if(gameObject.tag == "rArm")
+                    {
+                        //Debug.LogError("ohh***REMOVED***herewegoagain");
+                        stick.rArmList.Add(link);
+                    }
+                    else
+                    {
+                        stick.lArmList.Add(link);
+                    }
                     //freezing rotation bad as means muscle doesn't work as it moves rotationaaa
                     //body.freezeRotation = true;
                 }
@@ -136,15 +150,25 @@ public class Rope : MonoBehaviour {
                         if(link.tag == "rFoot")
                         {
                             stick.rFootBody = body;
+                            stick.rLegList.Add(link);
                         }
                         else
                         {
                             stick.lFootBody = body;
+                            stick.lLegList.Add(link);
                         }
 
                     }
                     else
                     {
+                        if(gameObject.tag == "rLeg")
+                        {
+                            stick.rLegList.Add(link);
+                        }
+                        else
+                        {
+                            stick.lLegList.Add(link);
+                        }
                         link.tag = gameObject.tag;
                         body.mass = stick.leg_mass;
                         gameObject.GetComponent<Rigidbody2D>().mass = stick.leg_mass;
@@ -182,6 +206,7 @@ public class Rope : MonoBehaviour {
             
                 if(gameObject.tag == "rLeg")
                 {
+                    stick.rLegMuscleList.Add(muscle);
                     Array.Resize(ref stick.rbRIGHT, stick.rbRIGHT.Length + 1);
                     stick.rbRIGHT[stick.rbRIGHT.Length - 1] = body;
                     if(i<(length/2))
@@ -196,6 +221,7 @@ public class Rope : MonoBehaviour {
                 }
                 else if(gameObject.tag == "lLeg")
                 {
+                    stick.lLegMuscleList.Add(muscle);
                     Array.Resize(ref stick.rbLEFT, stick.rbLEFT.Length + 1);
                     stick.rbLEFT[stick.rbLEFT.Length - 1] = body;
                     //if(i<(length/2))
@@ -210,18 +236,20 @@ public class Rope : MonoBehaviour {
                 else if(gameObject.tag == "rArm")
                 {
                     Array.Resize(ref stick.rbARIGHT, stick.rbARIGHT.Length + 1);
+                    stick.rArmMuscleList.Add(muscle);
                     stick.rbARIGHT[stick.rbARIGHT.Length - 1] = body;
                     link.tag = "rArm";
                     if(i == length - 1)
                     {
                         CheckGrab grab = link.AddComponent(typeof(CheckGrab)) as CheckGrab;
                         grab.Stick = stick;
-                        grab.Gun = Gun;
+                        //grab.Gun = Gun;
                         stick.rHand = link;
                     }
                 }
                 else if(gameObject.tag == "lArm")
                 {
+                    stick.lArmMuscleList.Add(muscle);
                     Array.Resize(ref stick.rbALEFT, stick.rbALEFT.Length + 1);
                     stick.rbALEFT[stick.rbALEFT.Length - 1] = body;
                     link.tag = "lArm";
@@ -229,7 +257,7 @@ public class Rope : MonoBehaviour {
                     {
                         CheckGrab grab = link.AddComponent(typeof(CheckGrab)) as CheckGrab;
                         grab.Stick = stick;
-                        grab.Gun = Gun;
+                        //grab.Gun = Gun;
                         stick.lHand = link;
                     }
                 }
@@ -272,10 +300,12 @@ public class Rope : MonoBehaviour {
                     if (gameObject.tag == "rLeg")
                     {
                         stick.rayL = ray;
+                        stick.rFootCollided = collide;
                     }
                     else
                     {
                         stick.rayR = ray;
+                        stick.lFootCollided = collide;
                     }
                 }
                 else if(gameObject.tag == "rArm" || gameObject.tag == "lArm")

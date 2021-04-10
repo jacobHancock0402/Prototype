@@ -4,12 +4,14 @@ public class CheckParticleColl : MonoBehaviour {
 
 	public float timer = 0;
 	public AudioSource source;
+	public Stickman stick;
 	void OnParticleCollision(GameObject obj)
 	{
 		if(obj.tag == "World" || obj.tag == "Metallic" && Time.time - timer > 1f)
 		{
+			// uh this playaudio is iffy
 			timer = Time.time;
-			source.PlayOneShot(source.clip);
+			stick.PlayAudio(source, gameObject);
 		}
 	}
 	// yeah this works and sounds ok

@@ -2,13 +2,14 @@
 using UnityEngine;
 public class CheckGrab : MonoBehaviour {
     public Stickman Stick;
-    public Gun Gun;
+    //public Gun Gun;
     public float deltaleg_mass = 0.1f;
     public float deltafoot_mass = 0.02f;
     public float deltabody_mass = 0.01f;
     public float deltaarm_mass = 7.5f;
     public float deltaoffarm_mass = 0;
     public float JumpScalar = 0.1f;
+    public bool active = true;
     void FormatColl(Collision2D coll)
     {
         if(gameObject.tag == "rArm")
@@ -58,7 +59,7 @@ public class CheckGrab : MonoBehaviour {
                 //Distance.autoConfigureDistance = false;
                 //Distance.dampingRatio = 1;
                 //Distance.frequency = 0;
-                Gun.DontAim = true;
+                //Gun.DontAim = true;
                 gameObject.GetComponent<Rigidbody2D>().freezeRotation = true;
                 Stick.NowHoldingR = true;
                 Stick.CopiedWalkLeftVector = Stick.WalkLeftVector;
@@ -138,11 +139,16 @@ public class CheckGrab : MonoBehaviour {
     }
     void OnCollisionEnter2D(Collision2D coll)
     {
-        FormatColl(coll);
+        if(active)
+        {
+            FormatColl(coll);
+        }
     }
     void OnCollisionStay2D(Collision2D coll)
-    {
-        FormatColl(coll);
+    {   if(active)
+        {
+            FormatColl(coll);
+        }
     }
     public void ScaleRightMasses()
     {

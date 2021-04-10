@@ -1,0 +1,15 @@
+{
+    "name": "RandomStuff",
+    "references": [
+        "GUID:2a96a53a746db1049b4f62ef4f72547b"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": true,
+    "precompiledReferences": [],
+    "autoReferenced": false,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}
